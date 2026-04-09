@@ -61,6 +61,7 @@ Edite `.env` na raiz (ou `backend/ProductStore.Api/.env` — o último carregado
 - **Cosmos** (`Cosmos__Token`): obrigatório para pré-visualização e gravação com SKU tipo GTIN/Cosmos; sem token, use SKU **interno** ou o ambiente em [product-store-teste.vercel.app](https://product-store-teste.vercel.app/).
 - **Turnstile** (`Turnstile__SecretKey` na raiz + `VITE_TURNSTILE_SITE_KEY` no frontend): necessários em builds de produção; em **Development** a API dispensa o widget.
 - **Frontend local**: deixe `VITE_API_BASE_URL` vazio — o proxy do Vite encaminha `/api` para a porta 5127.
+- **Auth de teste** (`TestAuth:Enabled`): uso exclusivo dos testes de integração; a aplicação falha ao iniciar se esta flag for ligada fora de `IntegrationTesting`.
 
 Em **produção** (Render): `Jwt__Key` (≥32 caracteres), `CORS_ORIGINS` com a origem Vercel (**obrigatório** em produção), e opcionalmente `AllowedHosts`.
 
@@ -72,10 +73,11 @@ Na primeira execução são criados `data/identity.db` (contas) e, por cada regi
 
 | Serviço | O quê |
 |---------|--------|
-| **Vercel** | Frontend React (Vite). **Root Directory:** `frontend`. Configuração em `frontend/vercel.json` (build, `dist`, rewrites SPA). Variáveis: `VITE_API_BASE_URL` (URL pública da API, sem barra final), `VITE_TURNSTILE_SITE_KEY`. |
+| **Vercel** | Frontend React (Vite). **Root Directory:** `frontend`. Configuração em `frontend/vercel.json` (build, `dist`, rewrites SPA). Variáveis: `VITE_API_BASE_URL` (URL pública da API, sem barra final), `VITE_TURNSTILE_SITE_KEY`. O build falha se estas variáveis obrigatórias não estiverem definidas. |
 | **Render** | API via **Docker** (`Dockerfile` na raiz): imagem multi-stage, utilizador não-root, `PORT` e `ASPNETCORE_URLS` conforme documentação Render. Variáveis **obrigatórias**: `Jwt__Key` (≥32 caracteres), `CORS_ORIGINS` (origem Vercel), `Turnstile__SecretKey`. Opcionais: `Cosmos__Token`, `AllowedHosts`. |
 
 O backend confia no último salto de `X-Forwarded-For` (`ForwardLimit = 1`), adequado a um proxy único como o da Render.
+Health checks públicos: `GET /health` e `GET /ready`.
 
 ## Executar testes
 

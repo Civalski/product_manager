@@ -14,6 +14,9 @@ import { RegisterPage } from './pages/RegisterPage'
 import { TurnstileVerifyPage } from './pages/TurnstileVerifyPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 
+const httpLogViewerEnabled =
+  import.meta.env.DEV || (import.meta.env.VITE_ENABLE_HTTP_LOG_VIEWER ?? '').toLowerCase() === 'true'
+
 function NavLink({ to, icon: Icon, children }: { to: string; icon: React.ElementType; children: React.ReactNode }) {
   const location = useLocation()
   const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
@@ -60,9 +63,11 @@ function AppShell() {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-row">
-            <div className="sidebar-footer-slot">
-              <HttpLogTriggerButton className="theme-toggle" onClick={() => setHttpLogOpen(true)} />
-            </div>
+            {httpLogViewerEnabled && (
+              <div className="sidebar-footer-slot">
+                <HttpLogTriggerButton className="theme-toggle" onClick={() => setHttpLogOpen(true)} />
+              </div>
+            )}
             <div className="sidebar-footer-slot">
               <button
                 type="button"
@@ -91,7 +96,7 @@ function AppShell() {
         </div>
       </aside>
 
-      <HttpLogViewer open={httpLogOpen} onClose={() => setHttpLogOpen(false)} />
+      {httpLogViewerEnabled && httpLogOpen ? <HttpLogViewer onClose={() => setHttpLogOpen(false)} /> : null}
 
       <main className="main">
         <div className="main-scroll">

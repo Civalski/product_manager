@@ -154,8 +154,14 @@ builder.Services.AddScoped<TenantDatabaseProvisioner>();
 
 
 var isIntegrationTesting = builder.Environment.IsEnvironment("IntegrationTesting");
+var testAuthEnabled = builder.Configuration.GetValue<bool>("TestAuth:Enabled");
 
-if (isIntegrationTesting)
+if (testAuthEnabled && !isIntegrationTesting)
+{
+    throw new InvalidOperationException("TestAuth:Enabled só pode ser usado no ambiente IntegrationTesting.");
+}
+
+if (testAuthEnabled)
 
 {
 
@@ -270,6 +276,8 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.CamelCase));
 
     });
+
+builder.Services.AddHealthChecks();
 
 builder.Services.AddOpenApi();
 
@@ -573,6 +581,8 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/ready");
 app.MapControllers();
 
 

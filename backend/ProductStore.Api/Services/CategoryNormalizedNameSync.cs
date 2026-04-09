@@ -12,14 +12,33 @@ public static class CategoryNormalizedNameSync
 {
     public static void AfterMigrate(AppDbContext db)
     {
-        var categories = db.Categories.ToList();
-        var any = false;
-        foreach (var c in categories)
+        var categories = db.Categories
+            .ToList();
+
+        var collisions = categories
+            .Select(c => new CategoryNormalizationCandidate(
+                c,
+                CategoryRules.NormalizeCategoryName(c.Name)))
+            .GroupBy(c => c.ComputedNormalizedName, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => $"{g.Key}: {string.Join(", ", g.Select(c => $"\"{c.Category.Name}\""))}")
+            .ToList();
+
+        if (collisions.Count > 0)
         {
-            var n = CategoryRules.NormalizeCategoryName(c.Name);
-            if (c.NormalizedName != n)
+            throw new InvalidOperationException(
+                "Conflito ao normalizar categorias existentes. " +
+                "Os nomes abaixo passam a ser iguais após remover acentos e normalizar espaços/letras: " +
+                string.Join("; ", collisions));
+        }
+
+        var any = false;
+        foreach (var category in categories)
+        {
+            var normalizedName = CategoryRules.NormalizeCategoryName(category.Name);
+            if (category.NormalizedName != normalizedName)
             {
-                c.NormalizedName = n;
+                category.NormalizedName = normalizedName;
                 any = true;
             }
         }
@@ -27,4 +46,8 @@ public static class CategoryNormalizedNameSync
         if (any)
             db.SaveChanges();
     }
+
+    private sealed record CategoryNormalizationCandidate(
+        Models.Category Category,
+        string ComputedNormalizedName);
 }

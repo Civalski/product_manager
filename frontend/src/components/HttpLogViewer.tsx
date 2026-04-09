@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ScrollText, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clearHttpLogs, getHttpLogs, subscribeHttpLogs } from '../lib/httpLog'
@@ -124,13 +124,14 @@ function LogRow({
   )
 }
 
-export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function HttpLogViewer({ onClose }: { onClose: () => void }) {
   const logs = useHttpLogs()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [detailSection, setDetailSection] = useState<LogDetailSection | null>(null)
   const [page, setPage] = useState(1)
 
   const totalPages = Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE))
+  const currentPage = Math.min(page, totalPages)
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 7) {
@@ -139,37 +140,26 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
     const pages = new Set<number>()
     pages.add(1)
     pages.add(totalPages)
-    for (let p = page - 1; p <= page + 1; p++) {
+    for (let p = currentPage - 1; p <= currentPage + 1; p++) {
       if (p >= 1 && p <= totalPages) pages.add(p)
     }
     return [...pages].sort((a, b) => a - b)
-  }, [page, totalPages])
-
-  useEffect(() => {
-    if (!open) return
-    setPage(1)
-    setExpandedId(null)
-  }, [open])
-
-  useEffect(() => {
-    setExpandedId(null)
-  }, [page])
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [logs.length, page, totalPages])
-
-  useEffect(() => {
-    setDetailSection(null)
-  }, [expandedId])
+  }, [currentPage, totalPages])
 
   const toggleRow = useCallback((id: string) => {
     setExpandedId((cur) => (cur === id ? null : id))
+    setDetailSection(null)
   }, [])
 
   const toggleSection = useCallback((s: LogDetailSection) => {
     setDetailSection((cur) => (cur === s ? null : s))
   }, [])
+
+  const goToPage = useCallback((nextPage: number) => {
+    setPage(Math.max(1, Math.min(totalPages, nextPage)))
+    setExpandedId(null)
+    setDetailSection(null)
+  }, [totalPages])
 
   const handleClear = useCallback(() => {
     clearHttpLogs()
@@ -179,11 +169,9 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
   }, [])
 
   const visibleLogs =
-    logs.length === 0 ? [] : logs.slice((page - 1) * LOGS_PER_PAGE, page * LOGS_PER_PAGE)
-  const rangeStart = logs.length === 0 ? 0 : (page - 1) * LOGS_PER_PAGE + 1
-  const rangeEnd = logs.length === 0 ? 0 : Math.min(page * LOGS_PER_PAGE, logs.length)
-
-  if (!open) return null
+    logs.length === 0 ? [] : logs.slice((currentPage - 1) * LOGS_PER_PAGE, currentPage * LOGS_PER_PAGE)
+  const rangeStart = logs.length === 0 ? 0 : (currentPage - 1) * LOGS_PER_PAGE + 1
+  const rangeEnd = logs.length === 0 ? 0 : Math.min(currentPage * LOGS_PER_PAGE, logs.length)
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
@@ -218,8 +206,8 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
                   <button
                     type="button"
                     className="pagination-btn"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    onClick={() => goToPage(currentPage - 1)}
                     aria-label="Página anterior"
                   >
                     <ChevronLeft />
@@ -236,8 +224,8 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
                         )}
                         <button
                           type="button"
-                          className={`pagination-btn ${p === page ? 'active' : ''}`}
-                          onClick={() => setPage(p)}
+                          className={`pagination-btn ${p === currentPage ? 'active' : ''}`}
+                          onClick={() => goToPage(p)}
                         >
                           {p}
                         </button>
@@ -247,8 +235,8 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
                   <button
                     type="button"
                     className="pagination-btn"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    onClick={() => goToPage(currentPage + 1)}
                     aria-label="Próxima página"
                   >
                     <ChevronRight />

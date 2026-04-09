@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import {
   clearAuth,
   clearPendingLogin,
-  getStoredUserName,
+  getStoredAuth,
   persistAuth,
   persistPendingLogin,
   completeTurnstile as apiCompleteTurnstile,
@@ -23,7 +23,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userName, setUserName] = useState<string | null>(() => getStoredUserName())
+  const [userName, setUserName] = useState<string | null>(() => getStoredAuth()?.userName ?? null)
 
   const logout = useCallback(() => {
     clearAuth()
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       userName,
-      isAuthenticated: !!userName,
+      isAuthenticated: userName !== null && getStoredAuth() !== null,
       login,
       completeTurnstileLogin,
       register,

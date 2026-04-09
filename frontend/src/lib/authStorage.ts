@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'productstore.auth.token'
 const USER_KEY = 'productstore.auth.userName'
+const EXPIRES_KEY = 'productstore.auth.expiresAtUtc'
 
 const PENDING_TOKEN_KEY = 'productstore.auth.pendingToken'
 const PENDING_USER_KEY = 'productstore.auth.pendingUserName'
@@ -17,22 +18,47 @@ export type LoginPendingResponse = {
   pendingExpiresAtUtc: string
 }
 
+function isExpired(isoUtc: string): boolean {
+  const parsed = Date.parse(isoUtc)
+  return Number.isFinite(parsed) && parsed <= Date.now()
+}
+
+export function getStoredAuth(): AuthResponse | null {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const userName = localStorage.getItem(USER_KEY)
+  const expiresAtUtc = localStorage.getItem(EXPIRES_KEY)
+
+  if (!token || !userName || !expiresAtUtc) {
+    clearAuth()
+    return null
+  }
+
+  if (isExpired(expiresAtUtc)) {
+    clearAuth()
+    return null
+  }
+
+  return { token, userName, expiresAtUtc }
+}
+
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return getStoredAuth()?.token ?? null
 }
 
 export function getStoredUserName(): string | null {
-  return localStorage.getItem(USER_KEY)
+  return getStoredAuth()?.userName ?? null
 }
 
 export function persistAuth(res: AuthResponse): void {
   localStorage.setItem(TOKEN_KEY, res.token)
   localStorage.setItem(USER_KEY, res.userName)
+  localStorage.setItem(EXPIRES_KEY, res.expiresAtUtc)
 }
 
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(EXPIRES_KEY)
 }
 
 export function persistPendingLogin(res: LoginPendingResponse): void {
@@ -46,7 +72,7 @@ export function getPendingLogin(): LoginPendingResponse | null {
   const userName = sessionStorage.getItem(PENDING_USER_KEY)
   const pendingExpiresAtUtc = sessionStorage.getItem(PENDING_EXPIRES_KEY)
   if (!pendingToken || !userName || !pendingExpiresAtUtc) return null
-  if (Number.isFinite(Date.parse(pendingExpiresAtUtc)) && Date.parse(pendingExpiresAtUtc) < Date.now()) {
+  if (isExpired(pendingExpiresAtUtc)) {
     clearPendingLogin()
     return null
   }

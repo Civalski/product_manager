@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace ProductStore.Api.Authentication;
 
 /// <summary>
-/// Autenticação fixa para testes de integração (ativada apenas com TestAuth:Enabled).
+/// Autenticação fixa para testes de integração (ativada apenas com TestAuth:Enabled em IntegrationTesting).
 /// </summary>
 public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {

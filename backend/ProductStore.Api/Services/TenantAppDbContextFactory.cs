@@ -14,6 +14,7 @@ public sealed class TenantAppDbContextFactory(
     ILogger<TenantAppDbContextFactory> logger) : ITenantAppDbContextFactory
 {
     private static readonly ConcurrentDictionary<string, bool> MigratedTenants = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> TenantMigrationLocks = new(StringComparer.OrdinalIgnoreCase);
 
     public AppDbContext CreateDbContext()
     {
@@ -31,24 +32,39 @@ public sealed class TenantAppDbContextFactory(
             .ConfigureWarnings(w => w.Ignore(RelationalEventId.NonTransactionalMigrationOperationWarning))
             .Options;
 
-        var db = new AppDbContext(options);
+        EnsureTenantMigrated(userId, options);
 
-        if (MigratedTenants.TryAdd(userId, true))
+        return new AppDbContext(options);
+    }
+
+    private void EnsureTenantMigrated(string userId, DbContextOptions<AppDbContext> options)
+    {
+        if (MigratedTenants.ContainsKey(userId))
+            return;
+
+        var migrationLock = TenantMigrationLocks.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
+        migrationLock.Wait();
+
+        try
         {
-            try
-            {
-                db.Database.Migrate();
-                CategoryNormalizedNameSync.AfterMigrate(db);
-                logger.LogInformation("Migrações aplicadas ao tenant {UserId}", userId);
-            }
-            catch (Exception ex)
-            {
-                MigratedTenants.TryRemove(userId, out _);
-                logger.LogError(ex, "Falha ao migrar base de dados do tenant {UserId}", userId);
-                throw;
-            }
-        }
+            if (MigratedTenants.ContainsKey(userId))
+                return;
 
-        return db;
+            using var db = new AppDbContext(options);
+            db.Database.Migrate();
+            CategoryNormalizedNameSync.AfterMigrate(db);
+            MigratedTenants[userId] = true;
+            logger.LogInformation("Migrações aplicadas ao tenant {UserId}", userId);
+        }
+        catch (Exception ex)
+        {
+            MigratedTenants.TryRemove(userId, out _);
+            logger.LogError(ex, "Falha ao migrar base de dados do tenant {UserId}", userId);
+            throw;
+        }
+        finally
+        {
+            migrationLock.Release();
+        }
     }
 }

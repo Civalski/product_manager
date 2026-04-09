@@ -11,6 +11,7 @@ Este documento descreve as medidas de segurança implementadas no ProductStore e
 - **Cloudflare Turnstile** (CAPTCHA) no registo e login
 - **Honeypot** anti-bot nos formulários de autenticação
 - **Two-step login**: credenciais → Turnstile → JWT de sessão
+- **TestAuth** bloqueado fora de `IntegrationTesting` mesmo que a flag seja configurada por engano
 
 ### 2. Rate Limiting
 - **Auth endpoints**: 5-10 requisições/minuto por IP
@@ -45,6 +46,7 @@ Este documento descreve as medidas de segurança implementadas no ProductStore e
 - Mensagens de erro detalhadas **apenas em Development**
 - Stack traces ocultados em produção
 - Logging estruturado sem exposição de dados sensíveis
+- Painel de logs HTTP do frontend **desligado por padrão em produção** (opt-in via `VITE_ENABLE_HTTP_LOG_VIEWER=true`)
 
 ### 8. HTTPS e Transport Security
 - **HTTPS redirect** obrigatório em produção
@@ -59,6 +61,9 @@ Este documento descreve as medidas de segurança implementadas no ProductStore e
 - **Non-root user** no container (UID 1001)
 - Multi-stage build (reduz superfície de ataque)
 - Apenas portas necessárias expostas
+
+### 11. Health Checks
+- `GET /health` e `GET /ready` expostos para monitorização e readiness probes
 
 ---
 

@@ -24,6 +24,7 @@ public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
     static ApiWebApplicationFactory()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "IntegrationTesting");
+        Environment.SetEnvironmentVariable("TestAuth__Enabled", "true");
     }
 
     public ApiWebApplicationFactory()

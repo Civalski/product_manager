@@ -7,6 +7,7 @@ export {
   clearAuth,
   clearPendingLogin,
   getPendingLogin,
+  getStoredAuth,
   getStoredToken,
   getStoredUserName,
   persistAuth,
