@@ -1,0 +1,6 @@
+# Blueprint Render: não defina rootDir (ou deixe a raiz do repo) — senão ./Dockerfile some.
+services:
+  - type: web
+    name: product-manager-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
