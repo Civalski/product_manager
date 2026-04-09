@@ -1,0 +1,11 @@
+.git
+**/.git
+**/bin
+**/obj
+**/node_modules
+frontend
+.playwright-mcp
+*.log
+.env
+.env.*
+!.env.example

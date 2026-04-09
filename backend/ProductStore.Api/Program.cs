@@ -30,6 +30,20 @@ DotEnvBootstrap.TryLoadDotEnvFiles();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Origens do front em produção (Vercel, etc.): lista separada por vírgulas.
+// Env: CORS_ORIGINS ou Cors__AllowedOrigins (ex.: https://app.vercel.app,https://*.vercel.app não é suportado — liste cada URL de preview se precisar).
+static string[] ParseCorsOrigins(string? raw)
+{
+    if (string.IsNullOrWhiteSpace(raw)) return [];
+    return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
+var corsOriginsRaw = builder.Configuration["Cors:AllowedOrigins"];
+if (string.IsNullOrWhiteSpace(corsOriginsRaw))
+    corsOriginsRaw = Environment.GetEnvironmentVariable("CORS_ORIGINS");
+
+var prodCorsOrigins = ParseCorsOrigins(corsOriginsRaw);
+
 
 
 // Em Development, SQLite fica em `<repo>/data/` para o `dotnet watch` não registar cada escrita (-wal/-shm) dentro do projeto.
@@ -157,6 +171,20 @@ builder.Services.AddCors(o =>
 
         .AllowAnyMethod());
 
+    if (prodCorsOrigins.Length > 0)
+
+    {
+
+        o.AddPolicy("ProdFront", p => p
+
+            .WithOrigins(prodCorsOrigins)
+
+            .AllowAnyHeader()
+
+            .AllowAnyMethod());
+
+    }
+
 });
 
 
@@ -172,6 +200,14 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
     app.UseCors("DevFront");
+
+}
+
+else if (prodCorsOrigins.Length > 0)
+
+{
+
+    app.UseCors("ProdFront");
 
 }
 
