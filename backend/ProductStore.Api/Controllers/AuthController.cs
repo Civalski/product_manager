@@ -166,6 +166,18 @@ public sealed class AuthController(
         if (user is null)
             return Unauthorized();
 
+        try
+        {
+            await tenantProvisioner.CreateAndMigrateTenantDatabaseAsync(user.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falha ao preparar base de dados do tenant para {UserId} durante o login", user.Id);
+            return Problem(
+                detail: "Não foi possível preparar a base de dados do utilizador. Tente novamente.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+
         var token = jwtTokenService.CreateToken(user);
         var expires = DateTimeOffset.UtcNow.AddDays(Math.Max(1, jwtOptions.Value.ExpireDays));
         var name = user.UserName ?? pending.UserName ?? string.Empty;

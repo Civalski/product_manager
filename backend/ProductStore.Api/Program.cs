@@ -592,8 +592,10 @@ using (var scope = app.Services.CreateScope())
 {
 
     var identityDb = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+    var tenantProvisioner = scope.ServiceProvider.GetRequiredService<TenantDatabaseProvisioner>();
 
     await identityDb.Database.MigrateAsync();
+    await tenantProvisioner.MigrateExistingTenantDatabasesAsync();
 
 }
 
