@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authentication;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
+using Microsoft.AspNetCore.HttpOverrides;
+
 using Microsoft.AspNetCore.Identity;
 
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +37,8 @@ using ProductStore.Api.Configuration;
 
 using ProductStore.Api.Data;
 
+using ProductStore.Api.Http;
+
 using ProductStore.Api.Identity;
 
 using ProductStore.Api.Middleware;
@@ -46,6 +50,14 @@ using ProductStore.Api.Services;
 DotEnvBootstrap.TryLoadDotEnvFiles();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Render / Docker / reverse proxy: X-Forwarded-For e RemoteIpAddress corretos para rate limit e Turnstile siteverify.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Origens do front em produção (Vercel, etc.): lista separada por vírgulas.
 // Env: CORS_ORIGINS ou Cors__AllowedOrigins (ex.: https://app.vercel.app,https://*.vercel.app não é suportado — liste cada URL de preview se precisar).
@@ -355,7 +367,7 @@ builder.Services.AddRateLimiter(options =>
 
     {
 
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var ip = ClientIpResolver.GetClientIpAddress(httpContext) ?? "unknown";
 
         return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
 
@@ -377,7 +389,7 @@ builder.Services.AddRateLimiter(options =>
 
     {
 
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var ip = ClientIpResolver.GetClientIpAddress(httpContext) ?? "unknown";
 
         return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
 
@@ -399,9 +411,11 @@ builder.Services.AddRateLimiter(options =>
 
 
 
+JwtOptions.ThrowIfJwtKeyUnsafeForEnvironment(builder.Environment, builder.Configuration, isIntegrationTesting);
+
 var app = builder.Build();
 
-
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 

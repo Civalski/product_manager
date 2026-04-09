@@ -1,4 +1,8 @@
+using FluentValidation;
+
 using Microsoft.AspNetCore.Diagnostics;
+
+using Microsoft.AspNetCore.Mvc;
 
 using ProductStore.Api.Exceptions;
 
@@ -29,6 +33,38 @@ public sealed class GlobalExceptionHandler(
         switch (exception)
 
         {
+
+            case ValidationException vex:
+
+                logger.LogWarning("Validação falhou: {Message}", vex.Message);
+
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                var validationErrors = vex.Errors
+
+                    .GroupBy(e => e.PropertyName)
+
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+
+                await httpContext.Response.WriteAsJsonAsync(
+
+                    new ValidationProblemDetails(validationErrors)
+
+                    {
+
+                        Status = StatusCodes.Status400BadRequest,
+
+                        Title = "Dados inválidos",
+
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1"
+
+                    },
+
+                    cancellationToken);
+
+                return true;
+
+
 
             case ProductNotFoundException nf:
 

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using ProductStore.Api.Configuration;
 using ProductStore.Api.DTOs;
+using ProductStore.Api.Http;
 using ProductStore.Api.Identity;
 using ProductStore.Api.Services;
 
@@ -150,7 +151,7 @@ public sealed class AuthController(
         if (pending is null)
             return Unauthorized();
 
-        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var remoteIp = ClientIpResolver.GetClientIpAddress(HttpContext);
         var turnstileOk = await turnstileVerification.VerifyAsync(request.TurnstileToken, remoteIp, cancellationToken);
         if (!turnstileOk)
             return Problem(detail: "Verificação Cloudflare inválida ou expirada. Tente novamente.", statusCode: StatusCodes.Status400BadRequest);
