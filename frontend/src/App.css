@@ -361,14 +361,26 @@
 .turnstile-verify-body {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
   min-height: 72px;
   margin-top: 8px;
+  width: 100%;
+}
+
+.turnstile-verify-body--inline {
+  margin-top: 0;
 }
 
 .turnstile-widget-wrap {
   min-height: 65px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.turnstile-widget-wrap--full > div,
+.turnstile-widget-wrap--full iframe {
+  width: 100% !important;
 }
 
 .auth-form {

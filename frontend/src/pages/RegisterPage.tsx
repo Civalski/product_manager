@@ -139,9 +139,6 @@ export function RegisterPage() {
             <Package />
           </div>
           <h1 className="auth-card-title">Criar conta</h1>
-          <p className="auth-card-subtitle">
-            Palavra-passe: mínimo 8 caracteres, com pelo menos um número e um símbolo (ex.: ! ? #).
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

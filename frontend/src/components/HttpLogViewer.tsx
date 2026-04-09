@@ -265,9 +265,11 @@ export function HttpLogViewer({ onClose }: { onClose: () => void }) {
 export function HttpLogTriggerButton({
   onClick,
   className,
+  children,
 }: {
   onClick: () => void
   className?: string
+  children?: ReactNode
 }) {
   return (
     <button
@@ -278,6 +280,7 @@ export function HttpLogTriggerButton({
       aria-label="Visualizar logs HTTP"
     >
       <ScrollText size={16} />
+      {children}
     </button>
   )
 }
