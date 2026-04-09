@@ -13,8 +13,16 @@ RUN dotnet publish backend/ProductStore.Api/ProductStore.Api.csproj -c Release -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 appgroup \
-    && adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser \
+RUN if command -v addgroup >/dev/null 2>&1 && command -v adduser >/dev/null 2>&1; then \
+        addgroup --system --gid 1001 appgroup \
+        && adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser; \
+    elif command -v groupadd >/dev/null 2>&1 && command -v useradd >/dev/null 2>&1; then \
+        groupadd --system --gid 1001 appgroup \
+        && useradd --system --uid 1001 --gid appgroup --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin appuser; \
+    else \
+        echo "Nenhum utilitario suportado para criar usuario/grupo foi encontrado na imagem base." >&2; \
+        exit 1; \
+    fi \
     && mkdir -p /app/Data/users \
     && chown -R appuser:appgroup /app
 
