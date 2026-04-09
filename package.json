@@ -2,6 +2,7 @@
   "name": "product-manager",
   "private": true,
   "scripts": {
+    "build": "npm run build --prefix frontend",
     "predev": "node scripts/kill-orphan-api.cjs",
     "dev": "concurrently -n web,api -c magenta,cyan \"npm run dev --prefix frontend\" \"dotnet watch --quiet -v q run --project backend/ProductStore.Api/ProductStore.Api.csproj\"",
     "test": "dotnet test backend/ProductStore.Api.Tests/ProductStore.Api.Tests.csproj --configuration Release --verbosity minimal",
