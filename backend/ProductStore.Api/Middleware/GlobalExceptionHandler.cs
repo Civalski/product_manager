@@ -174,6 +174,34 @@ public sealed class GlobalExceptionHandler(
 
 
 
+            case NoProductsToExportException noProducts:
+
+                logger.LogInformation("Backup sem produtos na base do utilizador");
+
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                await httpContext.Response.WriteAsJsonAsync(
+
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails
+
+                    {
+
+                        Status = StatusCodes.Status400BadRequest,
+
+                        Title = "Sem dados",
+
+                        Detail = noProducts.Message,
+
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1"
+
+                    },
+
+                    cancellationToken);
+
+                return true;
+
+
+
             case ElectronicsMinPriceException price:
 
                 logger.LogWarning("Preço abaixo do mínimo para eletrônico: mínimo {Min}", price.MinPrice);

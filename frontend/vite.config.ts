@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Evita duas cópias de React (lucide-react usa hooks no Icon); sem isto, ícones quebram e o app pode falhar.
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
   logLevel: 'warn',
   server: {
     proxy: {

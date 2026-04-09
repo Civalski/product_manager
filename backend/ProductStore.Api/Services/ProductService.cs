@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ProductStore.Api.Data;
 using ProductStore.Api.Domain;
@@ -13,9 +15,17 @@ namespace ProductStore.Api.Services;
 public class ProductService(
     AppDbContext db,
     ICosmosGtinValidator cosmosGtinValidator,
+    IHttpContextAccessor httpContextAccessor,
     ILogger<ProductService> logger) : IProductService
 {
     private const int MaxPageSize = 100;
+
+    private static readonly JsonSerializerOptions ExportJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     private static readonly JsonSerializerOptions StoreCosmosMetaOptions = new()
     {
@@ -275,6 +285,41 @@ public class ProductService(
             query = query.Where(p => p.Id != ex);
         return query.AnyAsync(cancellationToken);
     }
+
+    public async Task<ProductExportResult> ExportAllToJsonAsync(CancellationToken cancellationToken = default)
+    {
+        var userId = httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            throw new InvalidOperationException("Exportação requer utilizador autenticado.");
+
+        var exportedAt = DateTimeOffset.UtcNow;
+        var fileName = $"products_backup_{exportedAt:yyyyMMdd_HHmmss}.json";
+
+        var entities = await db.Products.AsNoTracking()
+            .Include(p => p.Category)
+            .OrderBy(p => p.Name)
+            .ToListAsync(cancellationToken);
+
+        var products = entities.Select(p => Map(p, p.Category.Name)).ToList();
+
+        if (products.Count == 0)
+            throw new NoProductsToExportException();
+
+        var payload = new ProductsExportFilePayload(exportedAt, products.Count, products);
+        var json = JsonSerializer.Serialize(payload, ExportJsonOptions);
+
+        logger.LogInformation(
+            "Backup JSON gerado: {ProductCount} produtos (ficheiro sugerido {FileName})",
+            products.Count,
+            fileName);
+
+        return new ProductExportResult(fileName, products.Count, exportedAt, json);
+    }
+
+    private sealed record ProductsExportFilePayload(
+        DateTimeOffset ExportedAtUtc,
+        int ProductCount,
+        IReadOnlyList<ProductResponse> Products);
 
     private static void EnsureElectronicsMinPrice(string categoryName, decimal price)
     {

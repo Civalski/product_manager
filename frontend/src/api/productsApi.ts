@@ -151,3 +151,29 @@ export async function deleteProduct(id: string): Promise<void> {
 
 }
 
+
+
+export interface ProductExportResult {
+
+  fileName: string
+
+  productCount: number
+
+  exportedAtUtc: string
+
+  json: string
+
+}
+
+
+
+export async function exportProductsToJson(): Promise<ProductExportResult> {
+
+  return apiJson<ProductExportResult>('/api/products/export', {
+
+    method: 'POST',
+
+  }) as Promise<ProductExportResult>
+
+}
+

@@ -160,6 +160,20 @@ public record PagedProductsResponse(
 
 
 
+/// <summary>Resposta ao gerar backup JSON de todos os produtos (conteúdo para guardar no cliente).</summary>
+
+public record ProductExportResult(
+
+    string FileName,
+
+    int ProductCount,
+
+    DateTimeOffset ExportedAtUtc,
+
+    string Json);
+
+
+
 public record CategoryResponse(Guid Id, string Name);
 
 

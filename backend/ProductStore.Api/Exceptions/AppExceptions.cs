@@ -100,3 +100,15 @@ public sealed class CosmosNotConfiguredException()
 
 }
 
+
+
+/// <summary>Não há produtos na base do utilizador para gerar backup.</summary>
+
+public sealed class NoProductsToExportException()
+
+    : Exception("Não existem produtos para guardar no backup.")
+
+{
+
+}
+

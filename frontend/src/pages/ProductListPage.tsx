@@ -26,13 +26,22 @@ import {
 
   X,
 
+  Download,
+
 } from 'lucide-react'
 
 import { fetchCategories } from '../api/categoriesApi'
 
-import { deleteProduct, fetchProducts, type ProductListParams } from '../api/productsApi'
+import {
+  deleteProduct,
+  exportProductsToJson,
+  fetchProducts,
+  type ProductListParams,
+} from '../api/productsApi'
 
 import { getApiErrorMessage } from '../lib/apiClient'
+
+import { saveBackupJsonToDisk } from '../lib/saveBackupFile'
 import {
   cosmosBrandNameFromProduct,
   cosmosThumbnailFromProduct,
@@ -201,6 +210,10 @@ export function ProductListPage() {
 
   const [deleting, setDeleting] = useState(false)
 
+  const [exporting, setExporting] = useState(false)
+
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null)
+
 
 
   useEffect(() => {
@@ -255,6 +268,8 @@ export function ProductListPage() {
 
     setError(null)
 
+    setExportSuccess(null)
+
     try {
 
       const res = await fetchProducts(readFilters())
@@ -284,6 +299,30 @@ export function ProductListPage() {
   }, [load])
 
 
+
+  const handleBackupProducts = useCallback(async () => {
+    setExporting(true)
+    setExportSuccess(null)
+    setError(null)
+    try {
+      const r = await exportProductsToJson()
+      const outcome = await saveBackupJsonToDisk(r.fileName, r.json)
+      if (outcome === 'cancelled') return
+      if (outcome === 'saved') {
+        setExportSuccess(
+          `Backup guardado com ${r.productCount} produto(s).`,
+        )
+      } else {
+        setExportSuccess(
+          `Backup transferido (${r.productCount} produto(s)). Se o browser não pediu local, o ficheiro foi para a pasta de transferências.`,
+        )
+      }
+    } catch (e) {
+      setError(getApiErrorMessage(e))
+    } finally {
+      setExporting(false)
+    }
+  }, [])
 
   const hasActiveFilters = useCallback(() => {
 
@@ -430,6 +469,26 @@ export function ProductListPage() {
         </div>
 
         <div className="header-actions">
+
+          <button
+
+            type="button"
+
+            className="btn"
+
+            onClick={() => void handleBackupProducts()}
+
+            disabled={exporting}
+
+            title="Guardar cópia de todos os produtos num ficheiro JSON (escolhe o local no teu computador)"
+
+          >
+
+            <Download />
+
+            {exporting ? 'A preparar backup…' : 'Backup'}
+
+          </button>
 
           <button
 
@@ -621,6 +680,20 @@ export function ProductListPage() {
 
 
 
+      {exportSuccess && (
+
+        <div className="alert success">
+
+          <PackageOpen />
+
+          {exportSuccess}
+
+        </div>
+
+      )}
+
+
+
       <div className="table-card">
 
         {loading ? (
@@ -645,7 +718,7 @@ export function ProductListPage() {
 
                   <th>Nome</th>
 
-                  <th>Marca (Cosmos)</th>
+                  <th>Marca</th>
 
                   <th>Categoria</th>
 
@@ -671,8 +744,8 @@ export function ProductListPage() {
 
                     <td>
                       {isCosmosBackedProduct(p) ? (
-                        <span className="badge badge-accent" title="GTIN / Bluesoft Cosmos">
-                          Cosmos
+                        <span className="badge badge-accent" title="GTIN / dados externos">
+                          Externo
                         </span>
                       ) : (
                         <span className="badge badge-default">Interno</span>

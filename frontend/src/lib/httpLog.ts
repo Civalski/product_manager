@@ -35,7 +35,9 @@ export function clearHttpLogs() {
 
 export function subscribeHttpLogs(cb: () => void) {
   listeners.add(cb)
-  return () => listeners.delete(cb)
+  return () => {
+    listeners.delete(cb)
+  }
 }
 
 export function getHttpLogs(): readonly HttpLogEntry[] {

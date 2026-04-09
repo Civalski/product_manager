@@ -5,39 +5,77 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using ProductStore.Api.Data;
+using ProductStore.Api.Models;
 using ProductStore.Api.Services;
 
 namespace ProductStore.Api.Tests;
 
 /// <summary>
-/// Host de teste com SQLite em memória (mesma conexão durante o ciclo de vida) para não usar products.db de desenvolvimento.
+/// Host de teste: SQLite em memória para Identity e tenant, autenticação de teste, stub Cosmos.
 /// </summary>
 public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly SqliteConnection _tenantConnection = new("DataSource=:memory:");
+    private readonly SqliteConnection _identityConnection = new("DataSource=:memory:");
+
+    static ApiWebApplicationFactory()
+    {
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "IntegrationTesting");
+    }
 
     public ApiWebApplicationFactory()
     {
-        _connection.Open();
+        _tenantConnection.Open();
+        _identityConnection.Open();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureTestServices(services =>
         {
-            services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
-            services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
+            services.RemoveAll(typeof(DbContextOptions<AppIdentityDbContext>));
+            services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlite(_identityConnection));
+
+            services.RemoveAll(typeof(ITenantAppDbContextFactory));
+            services.AddScoped<ITenantAppDbContextFactory>(_ => new TestTenantAppDbContextFactory(_tenantConnection));
 
             services.RemoveAll<ICosmosGtinValidator>();
             services.AddSingleton<ICosmosGtinValidator, NoOpCosmosGtinValidator>();
         });
     }
 
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+        using var scope = host.Services.CreateScope();
+        var identityDb = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+        identityDb.Database.Migrate();
+
+        var tenantFactory = scope.ServiceProvider.GetRequiredService<ITenantAppDbContextFactory>();
+        using var tenantDb = tenantFactory.CreateDbContext();
+        tenantDb.Database.Migrate();
+
+        if (!tenantDb.Categories.Any())
+        {
+            tenantDb.Categories.AddRange(
+                new Category { Id = Guid.NewGuid(), Name = "Acessório" },
+                new Category { Id = Guid.NewGuid(), Name = "Eletrônico" });
+            tenantDb.SaveChanges();
+        }
+
+        return host;
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
-            _connection.Dispose();
+        {
+            _tenantConnection.Dispose();
+            _identityConnection.Dispose();
+        }
+
         base.Dispose(disposing);
     }
 }

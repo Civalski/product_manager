@@ -375,16 +375,14 @@ export function ProductFormPage() {
             <div className="form-grid">
               <div className="full">
                 <span
+                  className="form-label"
                   style={{
                     fontSize: '0.75rem',
                     fontWeight: 600,
-                    color: 'var(--text-secondary)',
-                    display: 'block',
                     marginBottom: 8,
                   }}
                 >
-                  Código do produto (SKU){' '}
-                  <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>
+                  Código do produto (SKU) <span className="required">*</span>
                 </span>
                 <div
                   className="sku-source-toggle"
@@ -444,27 +442,17 @@ export function ProductFormPage() {
                     </button>
                   )}
                 </div>
-                {form.skuSource === 'cosmosGtin' ? (
-                  cosmosPreview && hasCosmosPreviewData(cosmosPreview) ? (
-                    <CosmosPreviewPanel dto={cosmosPreview} />
-                  ) : (
-                    <p
-                      style={{
-                        marginTop: 14,
-                        fontSize: '0.85rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      Use <strong>Consultar</strong> para carregar na Cosmos marca, preços de mercado, NCM,
-                      GPC, pesos e dimensões. Os dados aparecem aqui antes de salvar.
-                    </p>
-                  )
+                {form.skuSource === 'cosmosGtin' &&
+                cosmosPreview &&
+                hasCosmosPreviewData(cosmosPreview) ? (
+                  <CosmosPreviewPanel dto={cosmosPreview} />
                 ) : null}
               </div>
 
               <label>
-                Nome <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>
+                <span className="form-label">
+                  Nome <span className="required">*</span>
+                </span>
                 <input
                   name="name"
                   value={form.name}
@@ -475,7 +463,9 @@ export function ProductFormPage() {
               </label>
 
               <label className="category-combobox-label">
-                Categoria <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>
+                <span className="form-label">
+                  Categoria <span className="required">*</span>
+                </span>
                 <div className="category-combobox">
                   <input
                     type="text"
@@ -515,7 +505,9 @@ export function ProductFormPage() {
               </label>
 
               <label>
-                Preço (R$) <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>
+                <span className="form-label">
+                  Preço (R$) <span className="required">*</span>
+                </span>
                 <input
                   name="price"
                   type="number"
@@ -529,7 +521,9 @@ export function ProductFormPage() {
               </label>
 
               <label>
-                Estoque <span style={{ color: 'var(--danger)', fontSize: '0.7rem' }}>*</span>
+                <span className="form-label">
+                  Estoque <span className="required">*</span>
+                </span>
                 <input
                   name="stock"
                   type="number"

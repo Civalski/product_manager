@@ -1,10 +1,23 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ScrollText, ChevronDown, ChevronRight } from 'lucide-react'
 import { clearHttpLogs, getHttpLogs, subscribeHttpLogs } from '../lib/httpLog'
 import type { HttpLogEntry } from '../lib/httpLog'
 
-function useHttpLogs() {
-  return useSyncExternalStore(subscribeHttpLogs, getHttpLogs, getHttpLogs)
+/** Copia o snapshot do store para o estado local (evita cache incorreto do useSyncExternalStore em alguns builds). */
+function useHttpLogs(modalOpen: boolean) {
+  const [logs, setLogs] = useState<HttpLogEntry[]>(() => [...getHttpLogs()])
+
+  useEffect(() => {
+    return subscribeHttpLogs(() => setLogs([...getHttpLogs()]))
+  }, [])
+
+  // Ao abrir o modal, alinha com o store (requisições que ocorreram antes da subscrição ou após falha de notificação).
+  useEffect(() => {
+    if (modalOpen) setLogs([...getHttpLogs()])
+  }, [modalOpen])
+
+  return logs
 }
 
 function statusClass(status: number): string {
@@ -75,7 +88,7 @@ function LogRow({
 }
 
 export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const logs = useHttpLogs()
+  const logs = useHttpLogs(open)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const toggle = useCallback((id: string) => {
@@ -89,7 +102,7 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--http-log" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">Logs HTTP</div>
@@ -118,15 +131,22 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
-export function HttpLogTriggerButton({ onClick }: { onClick: () => void }) {
+export function HttpLogTriggerButton({
+  onClick,
+  className,
+}: {
+  onClick: () => void
+  className?: string
+}) {
   return (
     <button
       type="button"
-      className="theme-toggle"
+      className={className ?? 'theme-toggle'}
       onClick={onClick}
       title="Visualizar logs HTTP"
       aria-label="Visualizar logs HTTP"

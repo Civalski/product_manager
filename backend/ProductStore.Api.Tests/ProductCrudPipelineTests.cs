@@ -87,5 +87,37 @@ public sealed class ProductCrudPipelineTests : IClassFixture<ApiWebApplicationFa
         Assert.Equal(HttpStatusCode.NotFound, getRes.StatusCode);
     }
 
+    [Fact]
+    public async Task Export_Post_DevolveJsonComTodosOsProdutos()
+    {
+        var categories = await _client.GetFromJsonAsync<List<CategoryResponse>>("/api/categories");
+        Assert.NotNull(categories);
+        var category = Assert.Single(categories!, c => c.Name == "Acessório");
+
+        var marker = Guid.NewGuid().ToString("N")[..8];
+        var createBody = new CreateProductRequest
+        {
+            Sku = $"EXP-{marker}",
+            Name = $"Export test {marker}",
+            Description = "Produto para teste de exportação JSON",
+            Price = 9.99m,
+            Stock = 3,
+            CategoryId = category.Id
+        };
+
+        var createRes = await _client.PostAsJsonAsync("/api/products", createBody);
+        Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
+
+        var exportRes = await _client.PostAsJsonAsync("/api/products/export", new { });
+        Assert.Equal(HttpStatusCode.OK, exportRes.StatusCode);
+        var export = await exportRes.Content.ReadFromJsonAsync<ProductExportResult>();
+        Assert.NotNull(export);
+        Assert.True(export!.ProductCount >= 1);
+        Assert.False(string.IsNullOrWhiteSpace(export.FileName));
+        Assert.EndsWith(".json", export.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(export.Json));
+        Assert.Contains(marker, export.Json, StringComparison.Ordinal);
+    }
+
     public void Dispose() => _client.Dispose();
 }

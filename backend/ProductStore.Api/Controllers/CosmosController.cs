@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductStore.Api.DTOs;
 using ProductStore.Api.Services;
@@ -5,6 +6,7 @@ using ProductStore.Api.Services;
 namespace ProductStore.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class CosmosController(ICosmosGtinValidator cosmos, ILogger<CosmosController> logger) : ControllerBase
 {

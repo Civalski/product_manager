@@ -10,4 +10,5 @@ public interface IProductService
     Task<ProductResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<PagedProductsResponse> ListAsync(ProductListQuery query, CancellationToken cancellationToken = default);
     Task<bool> SkuExistsAsync(string sku, Guid? excludeId, CancellationToken cancellationToken = default);
+    Task<ProductExportResult> ExportAllToJsonAsync(CancellationToken cancellationToken = default);
 }

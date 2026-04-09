@@ -6,7 +6,7 @@ Aplicação fullstack de gerenciamento de produtos com integração à API [Blue
 
 | Camada | Tecnologia |
 |--------|-----------|
-| **Backend** | ASP.NET Core 10 · EF Core 10 · SQLite · FluentValidation |
+| **Backend** | ASP.NET Core 10 · EF Core 10 · SQLite · ASP.NET Core Identity · JWT Bearer · FluentValidation |
 | **Frontend** | React 19 · TypeScript · Vite 8 · React Router 7 |
 | **Testes** | xUnit · `WebApplicationFactory` (integração) |
 | **Orquestração** | Node.js (`concurrently`) |
@@ -20,7 +20,7 @@ Aplicação fullstack de gerenciamento de produtos com integração à API [Blue
 - **Tratamento global de erros**: mapeamento de exceções de domínio → códigos HTTP corretos (400/404/409/429/502/503)
 - **Tema claro/escuro** persistido via `localStorage`
 - **Log de requisições HTTP** embutido no frontend (painel dedicado para debug)
-- **Dados de exemplo** inseridos automaticamente na primeira execução
+- **Autenticação**: registo e login (nome de utilizador e palavra-passe), JWT no cliente; cada utilizador tem um SQLite próprio em `data/users/{id}.db` (esquema migrado, sem dados iniciais)
 
 ## Pré-requisitos
 
@@ -46,7 +46,9 @@ Copie o arquivo de exemplo e preencha seu token da API Cosmos (opcional):
 cp .env.example .env
 ```
 
-O token é necessário apenas para usar a funcionalidade de pré-visualização por GTIN. Sem ele, o sistema funciona normalmente — apenas o enriquecimento por código de barras fica desabilitado.
+O token Cosmos é necessário apenas para a pré-visualização por GTIN. Sem ele, o enriquecimento por código de barras fica desabilitado.
+
+Em **produção**, defina `Jwt__Key` (ou `Jwt:Key` no `appsettings`) com pelo menos **32 caracteres** secretos; o valor de desenvolvimento em `appsettings.json` não deve ser usado em produção.
 
 ### 3. Instalar dependências Node
 
@@ -66,7 +68,7 @@ Isso inicia simultaneamente:
 - **API** → [http://localhost:5127](http://localhost:5127)
 - **OpenAPI/Swagger** → [http://localhost:5127/openapi/v1.json](http://localhost:5127/openapi/v1.json)
 
-O banco SQLite é criado automaticamente em `data/products.db` com categorias e produtos de exemplo na primeira execução.
+Na primeira execução são criados `data/identity.db` (contas) e, por cada registo, `data/users/{id}.db` (produtos e categorias desse utilizador). Em desenvolvimento, os ficheiros ficam em `data/` na raiz do repositório.
 
 ## Executar testes
 
@@ -88,25 +90,26 @@ Os testes de integração usam SQLite em memória e um stub da API Cosmos, sem d
 product_manager/
 ├── backend/
 │   ├── ProductStore.Api/              # API ASP.NET Core
-│   │   ├── Controllers/               # ProductsController, CategoriesController, CosmosController
+│   │   ├── Controllers/               # AuthController, ProductsController, CategoriesController, CosmosController
 │   │   ├── Services/                  # ProductService, CategoryService, CosmosGtinValidator
 │   │   ├── Domain/                    # Regras de negócio (CategoryRules, SkuSource)
 │   │   ├── DTOs/                      # Request/Response models
 │   │   ├── Models/                    # Entidades EF Core (Product, Category)
-│   │   ├── Data/                      # AppDbContext + Migrations
+│   │   ├── Data/                      # AppDbContext + Migrations; Identity (MigrationsIdentity)
 │   │   ├── Middleware/                # GlobalExceptionHandler
 │   │   ├── Validation/                # Validators FluentValidation
 │   │   └── Exceptions/                # Exceções de domínio tipadas
 │   └── ProductStore.Api.Tests/        # Testes de integração (xUnit)
 ├── frontend/
 │   └── src/
-│       ├── pages/                     # ProductListPage, ProductFormPage, ProductDetailPage
-│       ├── components/                # CosmosPreviewPanel, HttpLogViewer
-│       ├── api/                       # productsApi, categoriesApi, cosmosApi
-│       ├── lib/                       # apiClient (ApiError, formatação de erros), productCosmos
+│       ├── pages/                     # Login, Register, ProductList, ProductForm, ProductDetail
+│       ├── components/                # CosmosPreviewPanel, HttpLogViewer, ProtectedRoute
+│       ├── contexts/                  # AuthContext
+│       ├── api/                       # authApi, productsApi, categoriesApi, cosmosApi
+│       ├── lib/                       # apiClient, authStorage, productCosmos
 │       ├── hooks/                     # useTheme
 │       └── types/                     # Tipos TypeScript alinhados com a API
-├── data/                              # Banco SQLite (gerado em runtime, não versionado)
+├── data/                              # identity.db e users/*.db (gerados em runtime; `users/` versionado só com .gitkeep)
 ├── scripts/                           # kill-orphan-api.cjs (limpeza de processos)
 ├── .env.example                       # Modelo de variáveis de ambiente
 └── package.json                       # Scripts de orquestração (dev, test)
@@ -116,6 +119,8 @@ product_manager/
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
+| `POST` | `/api/auth/register` | Regista utilizador e devolve JWT |
+| `POST` | `/api/auth/login` | Login e JWT |
 | `GET` | `/api/products` | Lista paginada com filtros |
 | `POST` | `/api/products` | Cria produto |
 | `GET` | `/api/products/{id}` | Busca produto por ID |
@@ -123,7 +128,9 @@ product_manager/
 | `DELETE` | `/api/products/{id}` | Remove produto |
 | `GET` | `/api/categories` | Lista categorias |
 | `POST` | `/api/categories` | Cria categoria |
-| `GET` | `/api/cosmos/gtin/{gtin}` | Pré-visualização de produto por GTIN (requer token) |
+| `GET` | `/api/cosmos/gtins/{gtin}` | Pré-visualização de produto por GTIN (requer token Cosmos; rota protegida por JWT) |
+
+Rotas `/api/products`, `/api/categories` e `/api/cosmos/*` exigem cabeçalho `Authorization: Bearer <jwt>`.
 
 ### Parâmetros de listagem (`GET /api/products`)
 
@@ -138,6 +145,7 @@ product_manager/
 
 ## Decisões de arquitetura
 
+- **Multi-tenant por ficheiro**: cada utilizador autenticado (claim `NameIdentifier`) usa um `AppDbContext` em `data/users/{userId}.db`; no registo o ficheiro é criado e migrado sem dados iniciais.
 - **SQLite em desenvolvimento**: elimina dependência de banco externo; caminho configurado fora do projeto para o `dotnet watch` não monitorar os arquivos WAL.
 - **Proxy Vite**: requisições `/api/*` do frontend são redirecionadas para a API em desenvolvimento, evitando configuração de CORS no browser.
 - **DotEnvBootstrap**: carrega `.env` da raiz do repositório e do diretório do projeto API em sequência, com precedência do último — facilita configuração sem alterar `appsettings.json`.

@@ -1,26 +1,39 @@
+using System.Security.Claims;
+using System.Text;
+
 using FluentValidation;
 
 using FluentValidation.AspNetCore;
 
+using Microsoft.AspNetCore.Authentication;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+using Microsoft.AspNetCore.Identity;
+
 using Microsoft.AspNetCore.Mvc;
-
-using System.Net.Http.Headers;
-
-using System.Text.Json.Serialization;
 
 using Microsoft.EntityFrameworkCore;
 
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
+using Microsoft.IdentityModel.Tokens;
+
+using System.Net.Http.Headers;
+
+using System.Text.Json.Serialization;
+
 using DotNetEnv;
+
+using ProductStore.Api.Authentication;
 
 using ProductStore.Api.Configuration;
 
 using ProductStore.Api.Data;
 
-using ProductStore.Api.Middleware;
+using ProductStore.Api.Identity;
 
-using ProductStore.Api.Models;
+using ProductStore.Api.Middleware;
 
 using ProductStore.Api.Services;
 
@@ -53,17 +66,144 @@ var dataDir = builder.Environment.IsDevelopment()
 
 Directory.CreateDirectory(dataDir);
 
-var dbPath = Path.Combine(dataDir, "products.db");
+var usersDataDir = Path.Combine(dataDir, "users");
 
-var connectionString = $"Data Source={dbPath}";
+Directory.CreateDirectory(usersDataDir);
+
+var identityDbPath = Path.Combine(dataDir, "identity.db");
+
+var identityConnectionString = $"Data Source={identityDbPath}";
 
 
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContext<AppIdentityDbContext>(options =>
 
-    options.UseSqlite(connectionString).ConfigureWarnings(w =>
+    options.UseSqlite(identityConnectionString).ConfigureWarnings(w =>
 
         w.Ignore(RelationalEventId.NonTransactionalMigrationOperationWarning)));
+
+
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<ITenantAppDbContextFactory, TenantAppDbContextFactory>();
+
+builder.Services.AddScoped<AppDbContext>(sp =>
+
+    sp.GetRequiredService<ITenantAppDbContextFactory>().CreateDbContext());
+
+
+
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+
+    {
+
+        options.User.RequireUniqueEmail = false;
+
+        options.Password.RequiredLength = 6;
+
+        options.Password.RequireDigit = true;
+
+        options.Password.RequireLowercase = true;
+
+        options.Password.RequireUppercase = false;
+
+        options.Password.RequireNonAlphanumeric = false;
+
+    })
+
+    .AddEntityFrameworkStores<AppIdentityDbContext>()
+
+    .AddDefaultTokenProviders();
+
+
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+
+builder.Services.Configure<TurnstileOptions>(builder.Configuration.GetSection(TurnstileOptions.SectionName));
+
+builder.Services.AddHttpClient(nameof(TurnstileVerificationService), client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
+builder.Services.AddScoped<ITurnstileVerificationService, TurnstileVerificationService>();
+
+builder.Services.AddSingleton<JwtTokenService>();
+
+builder.Services.AddScoped<TenantDatabaseProvisioner>();
+
+
+
+var isIntegrationTesting = builder.Environment.IsEnvironment("IntegrationTesting");
+
+if (isIntegrationTesting)
+
+{
+
+    builder.Services.AddAuthentication(options =>
+
+        {
+
+            options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+
+            options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+
+        })
+
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
+
+}
+
+else
+
+{
+
+    var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+
+    var jwtKey = jwtSection["Key"] ?? string.Empty;
+
+    builder.Services.AddAuthentication(options =>
+
+        {
+
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+
+        })
+
+        .AddJwtBearer(options =>
+
+        {
+
+            options.TokenValidationParameters = new TokenValidationParameters
+
+            {
+
+                ValidateIssuer = true,
+
+                ValidateAudience = true,
+
+                ValidateLifetime = true,
+
+                ValidateIssuerSigningKey = true,
+
+                ValidIssuer = jwtSection["Issuer"],
+
+                ValidAudience = jwtSection["Audience"],
+
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+
+                NameClaimType = ClaimTypes.NameIdentifier,
+
+                RoleClaimType = ClaimTypes.Role,
+
+            };
+
+        });
+
+}
 
 
 
@@ -281,6 +421,8 @@ if (!app.Environment.IsDevelopment())
 
     app.UseHttpsRedirection();
 
+app.UseAuthentication();
+
 app.UseAuthorization();
 
 app.MapControllers();
@@ -291,81 +433,9 @@ using (var scope = app.Services.CreateScope())
 
 {
 
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var identityDb = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
 
-    await db.Database.MigrateAsync();
-
-
-
-    if (!await db.Categories.AnyAsync())
-
-    {
-
-        db.Categories.AddRange(
-
-            new Category { Id = Guid.NewGuid(), Name = "Acessório" },
-
-            new Category { Id = Guid.NewGuid(), Name = "Eletrônico" });
-
-        await db.SaveChangesAsync();
-
-    }
-
-
-
-    if (!await db.Products.AnyAsync())
-
-    {
-
-        var catAcc = await db.Categories.FirstAsync(c => c.Name == "Acessório");
-
-        var catEl = await db.Categories.FirstAsync(c => c.Name == "Eletrônico");
-
-        db.Products.AddRange(
-
-            new Product
-
-            {
-
-                Id = Guid.NewGuid(),
-
-                Sku = "7891910000197",
-
-                Name = "Produto exemplo (GTIN Cosmos)",
-
-                Description = "Uso diário",
-
-                Price = 89.90m,
-
-                Stock = 12,
-
-                CategoryId = catAcc.Id
-
-            },
-
-            new Product
-
-            {
-
-                Id = Guid.NewGuid(),
-
-                Sku = "7891910000203",
-
-                Name = "Produto exemplo embalagem (GTIN Cosmos)",
-
-                Description = "Categoria eletrônico com preço válido",
-
-                Price = 120m,
-
-                Stock = 5,
-
-                CategoryId = catEl.Id
-
-            });
-
-        await db.SaveChangesAsync();
-
-    }
+    await identityDb.Database.MigrateAsync();
 
 }
 

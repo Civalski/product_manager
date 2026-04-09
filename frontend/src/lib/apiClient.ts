@@ -1,6 +1,8 @@
 import type { ProblemDetails } from '../types/product'
 import { appendHttpLog } from './httpLog'
 
+import { getStoredToken } from './authStorage'
+
 const baseUrl = () => (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
 const BODY_PREVIEW_MAX = 4000
@@ -62,9 +64,14 @@ export async function apiJson<T>(
 ): Promise<T | undefined> {
   const url = `${baseUrl()}${path}`
   const method = (init?.method ?? 'GET').toUpperCase()
+  const token = getStoredToken()
   const headers: HeadersInit = {
     Accept: 'application/json',
     ...(init?.headers ?? {}),
+  }
+  const skipAuth = path.startsWith('/api/auth/')
+  if (token && !skipAuth && !(init?.headers as Record<string, string>)?.Authorization) {
+    ;(headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
   }
   if (init?.body !== undefined && !(init.headers as Record<string, string>)?.['Content-Type']) {
     ;(headers as Record<string, string>)['Content-Type'] = 'application/json'

@@ -32,9 +32,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
+  min-width: 0;
+}
+
+.sidebar-brand-text-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
 .sidebar-brand-icon {
@@ -59,6 +68,17 @@
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.sidebar-user-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-section {
@@ -131,6 +151,285 @@
   flex-shrink: 0;
 }
 
+.sidebar-footer-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sidebar-footer-slot {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.sidebar-footer-slot > .theme-toggle,
+.sidebar-footer-slot > .btn.sidebar-logout {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.sidebar-footer-row .theme-toggle {
+  width: 100%;
+  min-height: 38px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+}
+
+.sidebar-footer-row .theme-toggle:hover {
+  background: var(--bg-hover);
+  border: none;
+  color: var(--text-primary);
+}
+
+.sidebar-logout {
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-height: 38px;
+}
+
+.sidebar-logout svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   AUTH (login / register)
+   ============================================================ */
+
+.auth-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+@media (min-width: 900px) {
+  .auth-shell {
+    flex-direction: row;
+    align-items: stretch;
+  }
+}
+
+.auth-hero {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(32px, 6vw, 64px);
+  text-align: center;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, var(--accent-muted) 0%, transparent 55%),
+    linear-gradient(165deg, var(--bg-elevated) 0%, var(--bg-base) 100%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+@media (min-width: 900px) {
+  .auth-hero {
+    display: flex;
+    flex: 1 1 42%;
+    max-width: 520px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    border-bottom: none;
+    border-right: 1px solid var(--border-default);
+  }
+}
+
+.auth-hero-inner {
+  max-width: 320px;
+}
+
+.auth-hero-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.auth-hero-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+}
+
+.auth-hero-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.auth-hero-brand {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.auth-hero-tagline {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.auth-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+
+.auth-page-top {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: clamp(12px, 3vw, 20px);
+}
+
+.auth-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(56px, 10vw, 72px) clamp(16px, 4vw, 40px) clamp(28px, 6vw, 48px);
+  box-sizing: border-box;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: clamp(24px, 5vw, 36px);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-card-header {
+  text-align: center;
+  margin-bottom: clamp(20px, 4vw, 28px);
+}
+
+.auth-card-icon {
+  margin: 0 auto 14px;
+}
+
+.auth-card-icon--mobile-only {
+  display: flex;
+}
+
+@media (min-width: 900px) {
+  .auth-card-icon--mobile-only {
+    display: none;
+  }
+}
+
+.auth-card-title {
+  font-size: clamp(1.2rem, 3vw, 1.4rem);
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.auth-card-subtitle {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  margin: 0;
+  max-width: 28em;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.turnstile-verify-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  margin-top: 8px;
+}
+
+.turnstile-widget-wrap {
+  min-height: 65px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-form .form-field {
+  gap: 7px;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 0.9375rem;
+  box-sizing: border-box;
+}
+
+.auth-form-actions {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.auth-form-actions .auth-submit {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+}
+
+.auth-footer {
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: clamp(20px, 4vw, 26px) 0 0;
+  line-height: 1.5;
+}
+
+.auth-footer a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.auth-error {
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--danger-hover);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .auth-error {
+  border-color: rgba(251, 113, 133, 0.25);
+  background: var(--danger-muted);
+  color: var(--danger-hover);
+}
+
 /* ============================================================
    MAIN CONTENT
    ============================================================ */
@@ -190,8 +489,10 @@
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 /* ============================================================
@@ -1201,13 +1502,6 @@ select {
   word-break: break-word;
   max-height: 200px;
   overflow: auto;
-}
-
-.sidebar-footer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 @keyframes fadeIn {

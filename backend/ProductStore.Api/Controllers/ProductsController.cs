@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductStore.Api.DTOs;
 using ProductStore.Api.Services;
@@ -6,6 +7,7 @@ using ProductStore.Api.Services;
 namespace ProductStore.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class ProductsController(
     IProductService productService,
@@ -85,5 +87,15 @@ public class ProductsController(
 
         var page = await productService.ListAsync(query, cancellationToken);
         return Ok(page);
+    }
+
+    [HttpPost("export")]
+    [ProducesResponseType(typeof(ProductExportResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ProductExportResult>> ExportToJson(CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Gerando backup JSON de todos os produtos");
+        var result = await productService.ExportAllToJsonAsync(cancellationToken);
+        return Ok(result);
     }
 }
