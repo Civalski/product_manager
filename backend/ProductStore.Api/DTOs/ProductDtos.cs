@@ -71,7 +71,9 @@ public record ProductResponse(
 
     JsonNode? CosmosMetadata = null,
 
-    RealSkuFromCosmos? RealSku = null);
+    RealSkuFromCosmos? RealSku = null,
+
+    IReadOnlyDictionary<string, string>? CustomFields = null);
 
 
 
@@ -96,6 +98,9 @@ public class CreateProductRequest
     /// <summary>internal = código interno; cosmosGtin = GTIN validado na Bluesoft com preenchimento automático.</summary>
     public SkuSource SkuSource { get; set; } = SkuSource.Internal;
 
+    /// <summary>Chaves = Id (GUID) dos campos definidos para a categoria.</summary>
+    public Dictionary<string, string>? CustomFields { get; set; }
+
 }
 
 
@@ -119,6 +124,8 @@ public class UpdateProductRequest
     public Guid CategoryId { get; set; }
 
     public SkuSource SkuSource { get; set; } = SkuSource.Internal;
+
+    public Dictionary<string, string>? CustomFields { get; set; }
 
 }
 
@@ -185,6 +192,20 @@ public record CategoryResponse(Guid Id, string Name);
 
 
 public class CreateCategoryRequest
+
+{
+
+    public string Name { get; set; } = string.Empty;
+
+}
+
+
+
+public record CategoryFieldResponse(Guid Id, Guid CategoryId, string Name, int SortOrder);
+
+
+
+public class CreateCategoryFieldRequest
 
 {
 

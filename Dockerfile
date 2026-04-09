@@ -12,7 +12,15 @@ RUN dotnet publish backend/ProductStore.Api/ProductStore.Api.csproj -c Release -
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-COPY --from=build /app/publish .
+
+RUN addgroup --system --gid 1001 appgroup \
+    && adduser --system --uid 1001 --ingroup appgroup --no-create-home appuser \
+    && mkdir -p /app/Data/users \
+    && chown -R appuser:appgroup /app
+
+COPY --from=build --chown=appuser:appgroup /app/publish .
+
+USER appuser
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080

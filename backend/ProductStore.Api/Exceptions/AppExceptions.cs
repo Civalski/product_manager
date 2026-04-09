@@ -112,3 +112,37 @@ public sealed class NoProductsToExportException()
 
 }
 
+
+
+public class CategoryFieldNotFoundException(Guid categoryId, Guid fieldId)
+
+    : Exception($"Campo da categoria não encontrado: categoria {categoryId}, campo {fieldId}.")
+
+{
+
+    public Guid CategoryId { get; } = categoryId;
+
+    public Guid FieldId { get; } = fieldId;
+
+}
+
+
+
+public class DuplicateCategoryFieldNameException(string name)
+
+    : Exception($"Já existe um campo com o nome \"{name}\" nesta categoria.")
+
+{
+
+    public string Name { get; } = name;
+
+}
+
+
+
+public class InvalidProductCustomFieldsException(string message) : Exception(message)
+
+{
+
+}
+

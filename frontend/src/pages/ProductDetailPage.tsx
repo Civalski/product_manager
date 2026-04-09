@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Pencil,
@@ -10,12 +10,14 @@ import {
   Package,
   FileText,
   AlertCircle,
+  Tags,
 } from 'lucide-react'
+import { fetchCategoryFields } from '../api/categoriesApi'
 import { deleteProduct, fetchProduct } from '../api/productsApi'
 import { getApiErrorMessage } from '../lib/apiClient'
 import type { CosmosGtinProductDto } from '../types/cosmos'
 
-import type { ProductResponse, RealSkuFromCosmos } from '../types/product'
+import type { CategoryFieldResponse, ProductResponse, RealSkuFromCosmos } from '../types/product'
 
 const money = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -296,6 +298,7 @@ export function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [categoryFieldDefs, setCategoryFieldDefs] = useState<CategoryFieldResponse[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -316,6 +319,24 @@ export function ProductDetailPage() {
       cancelled = true
     }
   }, [id])
+
+  useEffect(() => {
+    if (!product?.categoryId) {
+      setCategoryFieldDefs([])
+      return
+    }
+    let cancelled = false
+    fetchCategoryFields(product.categoryId)
+      .then((fields) => {
+        if (!cancelled) setCategoryFieldDefs(fields)
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryFieldDefs([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [product?.categoryId])
 
   const handleDelete = async () => {
     if (!product) return
@@ -434,6 +455,26 @@ export function ProductDetailPage() {
           <dd><StockBadge stock={product.stock} /></dd>
         </dl>
       </div>
+
+      {categoryFieldDefs.length > 0 ? (
+        <div className="detail-section">
+          <div className="detail-section-header">
+            <Tags size={14} />
+            Campos da categoria
+          </div>
+          <dl className="detail-grid" style={{ padding: '14px 20px' }}>
+            {categoryFieldDefs.map((f) => {
+              const v = product.customFields?.[f.id]?.trim()
+              return (
+                <Fragment key={f.id}>
+                  <dt>{f.name}</dt>
+                  <dd>{v ? v : <span style={{ opacity: 0.65 }}>—</span>}</dd>
+                </Fragment>
+              )
+            })}
+          </dl>
+        </div>
+      ) : null}
 
       {product.description && (
         <div className="detail-section">

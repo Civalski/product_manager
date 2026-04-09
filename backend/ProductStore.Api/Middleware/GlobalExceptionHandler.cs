@@ -178,11 +178,11 @@ public sealed class GlobalExceptionHandler(
 
 
 
-            case FormatException fe:
+            case DuplicateCategoryFieldNameException dupField:
 
-                logger.LogWarning("Formato de dados inválido: {Message}", fe.Message);
+                logger.LogWarning("Nome de campo duplicado na categoria: {Name}", dupField.Name);
 
-                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
 
                 await httpContext.Response.WriteAsJsonAsync(
 
@@ -190,17 +190,107 @@ public sealed class GlobalExceptionHandler(
 
                     {
 
-                        Status = StatusCodes.Status500InternalServerError,
+                        Status = StatusCodes.Status409Conflict,
 
-                        Title = "Erro de dados",
+                        Title = "Conflito",
+
+                        Detail = dupField.Message,
+
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.8"
+
+                    },
+
+                    cancellationToken);
+
+                return true;
+
+
+
+            case CategoryFieldNotFoundException fieldNf:
+
+                logger.LogWarning(
+
+                    "Campo de categoria não encontrado: CategoryId={CategoryId} FieldId={FieldId}",
+
+                    fieldNf.CategoryId,
+
+                    fieldNf.FieldId);
+
+                httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+
+                await httpContext.Response.WriteAsJsonAsync(
+
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails
+
+                    {
+
+                        Status = StatusCodes.Status404NotFound,
+
+                        Title = "Não encontrado",
+
+                        Detail = fieldNf.Message,
+
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.4"
+
+                    },
+
+                    cancellationToken);
+
+                return true;
+
+
+
+            case InvalidProductCustomFieldsException badCf:
+
+                logger.LogWarning("Campos personalizados inválidos: {Message}", badCf.Message);
+
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                await httpContext.Response.WriteAsJsonAsync(
+
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails
+
+                    {
+
+                        Status = StatusCodes.Status400BadRequest,
+
+                        Title = "Validação",
+
+                        Detail = badCf.Message,
+
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1"
+
+                    },
+
+                    cancellationToken);
+
+                return true;
+
+
+
+            case FormatException fe:
+
+                logger.LogWarning("Formato de dados inválido: {Message}", fe.Message);
+
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                await httpContext.Response.WriteAsJsonAsync(
+
+                    new Microsoft.AspNetCore.Mvc.ProblemDetails
+
+                    {
+
+                        Status = StatusCodes.Status400BadRequest,
+
+                        Title = "Formato inválido",
 
                         Detail = environment.IsDevelopment()
 
                             ? fe.Message
 
-                            : "Inconsistência nos dados armazenados. Contacte o suporte ou restaure o banco.",
+                            : "Os dados enviados contêm valores em formato inválido.",
 
-                        Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1"
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1"
 
                     },
 

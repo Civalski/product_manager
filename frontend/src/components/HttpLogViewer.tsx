@@ -1,8 +1,12 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ScrollText, ChevronDown, ChevronRight } from 'lucide-react'
+import { ScrollText, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clearHttpLogs, getHttpLogs, subscribeHttpLogs } from '../lib/httpLog'
 import type { HttpLogEntry } from '../lib/httpLog'
+
+const LOGS_PER_PAGE = 10
+
+type LogDetailSection = 'error' | 'request' | 'response'
 
 function useHttpLogs() {
   return useSyncExternalStore(subscribeHttpLogs, getHttpLogs, getHttpLogs) as readonly HttpLogEntry[]
@@ -28,18 +32,51 @@ function formatTime(iso: string) {
   }
 }
 
+function LogDetailAccordion({
+  section,
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  section: LogDetailSection
+  title: string
+  open: boolean
+  onToggle: (s: LogDetailSection) => void
+  children: ReactNode
+}) {
+  return (
+    <div className="http-log-accordion">
+      <button
+        type="button"
+        className="http-log-accordion-head"
+        onClick={() => onToggle(section)}
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span className="http-log-accordion-title">{title}</span>
+      </button>
+      {open && <div className="http-log-accordion-body">{children}</div>}
+    </div>
+  )
+}
+
 function LogRow({
   entry,
   expanded,
-  onToggle,
+  openSection,
+  onToggleRow,
+  onToggleSection,
 }: {
   entry: HttpLogEntry
   expanded: boolean
-  onToggle: () => void
+  openSection: LogDetailSection | null
+  onToggleRow: () => void
+  onToggleSection: (s: LogDetailSection) => void
 }) {
   return (
     <div className="http-log-row">
-      <button type="button" className="http-log-row-head" onClick={onToggle}>
+      <button type="button" className="http-log-row-head" onClick={onToggleRow}>
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         <span className="http-log-time">{formatTime(entry.at)}</span>
         <span className="http-log-method">{entry.method}</span>
@@ -52,22 +89,34 @@ function LogRow({
       {expanded && (
         <div className="http-log-row-detail">
           {entry.error && (
-            <div className="http-log-block">
-              <div className="http-log-block-title">Erro</div>
+            <LogDetailAccordion
+              section="error"
+              title="Erro"
+              open={openSection === 'error'}
+              onToggle={onToggleSection}
+            >
               <pre className="http-log-pre">{entry.error}</pre>
-            </div>
+            </LogDetailAccordion>
           )}
           {entry.requestBody && (
-            <div className="http-log-block">
-              <div className="http-log-block-title">Corpo da requisição</div>
+            <LogDetailAccordion
+              section="request"
+              title="Corpo da requisição"
+              open={openSection === 'request'}
+              onToggle={onToggleSection}
+            >
               <pre className="http-log-pre">{entry.requestBody}</pre>
-            </div>
+            </LogDetailAccordion>
           )}
           {entry.responseBody && (
-            <div className="http-log-block">
-              <div className="http-log-block-title">Corpo da resposta</div>
+            <LogDetailAccordion
+              section="response"
+              title="Corpo da resposta"
+              open={openSection === 'response'}
+              onToggle={onToggleSection}
+            >
               <pre className="http-log-pre">{entry.responseBody}</pre>
-            </div>
+            </LogDetailAccordion>
           )}
         </div>
       )}
@@ -78,15 +127,61 @@ function LogRow({
 export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const logs = useHttpLogs()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [detailSection, setDetailSection] = useState<LogDetailSection | null>(null)
+  const [page, setPage] = useState(1)
 
-  const toggle = useCallback((id: string) => {
+  const totalPages = Math.max(1, Math.ceil(logs.length / LOGS_PER_PAGE))
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    const pages = new Set<number>()
+    pages.add(1)
+    pages.add(totalPages)
+    for (let p = page - 1; p <= page + 1; p++) {
+      if (p >= 1 && p <= totalPages) pages.add(p)
+    }
+    return [...pages].sort((a, b) => a - b)
+  }, [page, totalPages])
+
+  useEffect(() => {
+    if (!open) return
+    setPage(1)
+    setExpandedId(null)
+  }, [open])
+
+  useEffect(() => {
+    setExpandedId(null)
+  }, [page])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [logs.length, page, totalPages])
+
+  useEffect(() => {
+    setDetailSection(null)
+  }, [expandedId])
+
+  const toggleRow = useCallback((id: string) => {
     setExpandedId((cur) => (cur === id ? null : id))
+  }, [])
+
+  const toggleSection = useCallback((s: LogDetailSection) => {
+    setDetailSection((cur) => (cur === s ? null : s))
   }, [])
 
   const handleClear = useCallback(() => {
     clearHttpLogs()
     setExpandedId(null)
+    setDetailSection(null)
+    setPage(1)
   }, [])
+
+  const visibleLogs =
+    logs.length === 0 ? [] : logs.slice((page - 1) * LOGS_PER_PAGE, page * LOGS_PER_PAGE)
+  const rangeStart = logs.length === 0 ? 0 : (page - 1) * LOGS_PER_PAGE + 1
+  const rangeEnd = logs.length === 0 ? 0 : Math.min(page * LOGS_PER_PAGE, logs.length)
 
   if (!open) return null
 
@@ -99,24 +194,79 @@ export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () =>
             <p className="http-log-empty">Nenhuma requisição registrada nesta sessão.</p>
           ) : (
             <div className="http-log-list">
-              {logs.map((entry) => (
+              {visibleLogs.map((entry) => (
                 <LogRow
                   key={entry.id}
                   entry={entry}
                   expanded={expandedId === entry.id}
-                  onToggle={() => toggle(entry.id)}
+                  openSection={expandedId === entry.id ? detailSection : null}
+                  onToggleRow={() => toggleRow(entry.id)}
+                  onToggleSection={toggleSection}
                 />
               ))}
             </div>
           )}
         </div>
-        <div className="modal-footer">
-          <button type="button" className="btn" onClick={handleClear} disabled={logs.length === 0}>
-            Limpar
-          </button>
-          <button type="button" className="btn primary" onClick={onClose}>
-            Fechar
-          </button>
+        <div className="modal-footer modal-footer--http-log">
+          {logs.length > 0 ? (
+            <div className="http-log-footer-left">
+              <span className="pagination-info http-log-footer-info">
+                Mostrando {rangeStart}–{rangeEnd} de {logs.length} requisição(ões)
+              </span>
+              {totalPages > 1 && (
+                <div className="pagination-controls http-log-footer-pages">
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft />
+                  </button>
+                  {pageNumbers.map((p, idx) => {
+                    const prev = pageNumbers[idx - 1]
+                    const showEllipsis = idx > 0 && prev !== undefined && p - prev > 1
+                    return (
+                      <span key={p} className="http-log-pagination-slot">
+                        {showEllipsis && (
+                          <span className="http-log-pagination-ellipsis" aria-hidden>
+                            …
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className={`pagination-btn ${p === page ? 'active' : ''}`}
+                          onClick={() => setPage(p)}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    aria-label="Próxima página"
+                  >
+                    <ChevronRight />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="http-log-footer-spacer" aria-hidden />
+          )}
+          <div className="http-log-footer-actions">
+            <button type="button" className="btn" onClick={handleClear} disabled={logs.length === 0}>
+              Limpar
+            </button>
+            <button type="button" className="btn primary" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
         </div>
       </div>
     </div>,

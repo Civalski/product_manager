@@ -49,6 +49,11 @@ public sealed class AuthController(
 
         await registerValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+        var remoteIp = ClientIpResolver.GetClientIpAddress(HttpContext);
+        var turnstileOk = await turnstileVerification.VerifyAsync(request.TurnstileToken ?? "", remoteIp, cancellationToken);
+        if (!turnstileOk)
+            return Problem(detail: "Verificação Cloudflare inválida ou expirada. Tente novamente.", statusCode: StatusCodes.Status400BadRequest);
+
         var userName = request.UserName.Trim();
         var user = new ApplicationUser
         {
@@ -138,6 +143,7 @@ public sealed class AuthController(
 
     [HttpPost("complete-turnstile")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-login")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

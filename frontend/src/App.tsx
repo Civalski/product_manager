@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Moon, Package, LayoutList, PlusCircle, Sun } from 'lucide-react'
+import { LogOut, Moon, Package, LayoutList, PlusCircle, Sun, Tags } from 'lucide-react'
 import { HttpLogTriggerButton, HttpLogViewer } from './components/HttpLogViewer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
@@ -12,6 +12,7 @@ import { ProductFormPage } from './pages/ProductFormPage'
 import { ProductListPage } from './pages/ProductListPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { TurnstileVerifyPage } from './pages/TurnstileVerifyPage'
+import { CategoriesPage } from './pages/CategoriesPage'
 
 function NavLink({ to, icon: Icon, children }: { to: string; icon: React.ElementType; children: React.ReactNode }) {
   const location = useLocation()
@@ -51,6 +52,7 @@ function AppShell() {
           <nav className="sidebar-nav">
             <NavLink to="/" icon={LayoutList}>Produtos</NavLink>
             <NavLink to="/products/new" icon={PlusCircle}>Novo Produto</NavLink>
+            <NavLink to="/categories" icon={Tags}>Categorias</NavLink>
           </nav>
         </div>
 
@@ -117,6 +119,7 @@ function App() {
         <Route path="products/new" element={<ProductFormPage />} />
         <Route path="products/:id" element={<ProductDetailPage />} />
         <Route path="products/:id/edit" element={<ProductFormPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

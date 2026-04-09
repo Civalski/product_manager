@@ -8,6 +8,9 @@ public sealed class RegisterRequest
 
     /// <summary>Campo armadilha (honeypot); deve permanecer vazio.</summary>
     public string? Website { get; set; }
+
+    /// <summary>Token do Cloudflare Turnstile. Obrigatório em produção; ignorado em Development.</summary>
+    public string? TurnstileToken { get; set; }
 }
 
 public sealed class LoginRequest

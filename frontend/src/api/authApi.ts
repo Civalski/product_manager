@@ -17,10 +17,11 @@ export async function register(
   userName: string,
   password: string,
   website = '',
+  turnstileToken = '',
 ): Promise<AuthResponse> {
   const data = await apiJson<AuthResponse>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ userName, password, website }),
+    body: JSON.stringify({ userName, password, website, turnstileToken }),
   })
   if (!data) throw new Error('Resposta vazia.')
   return data

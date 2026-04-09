@@ -68,5 +68,8 @@ public class Product
 
     public double? CosmosLength { get; set; }
 
+    /// <summary>JSON: mapa de Id do campo da categoria (GUID string) → valor texto.</summary>
+    public string? CustomFieldValuesJson { get; set; }
+
 }
 

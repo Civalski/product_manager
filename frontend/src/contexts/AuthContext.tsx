@@ -16,7 +16,7 @@ type AuthContextValue = {
   isAuthenticated: boolean
   login: (userName: string, password: string, honeypot?: string) => Promise<void>
   completeTurnstileLogin: (turnstileToken: string) => Promise<void>
-  register: (userName: string, password: string, honeypot?: string) => Promise<void>
+  register: (userName: string, password: string, honeypot?: string, turnstileToken?: string) => Promise<void>
   logout: () => void
 }
 
@@ -46,8 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserName(res.userName)
   }, [])
 
-  const register = useCallback(async (u: string, p: string, honeypot = '') => {
-    const res = await apiRegister(u, p, honeypot)
+  const register = useCallback(async (u: string, p: string, honeypot = '', turnstileToken = '') => {
+    const res = await apiRegister(u, p, honeypot, turnstileToken)
     persistAuth(res)
     setUserName(res.userName)
   }, [])

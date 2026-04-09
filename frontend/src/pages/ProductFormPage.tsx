@@ -2,11 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { ArrowLeft, Save, AlertCircle, Package, Search } from 'lucide-react'
+import { ArrowLeft, Save, AlertCircle, Package, Search, Plus, Tags } from 'lucide-react'
 
 import { fetchCosmosGtin } from '../api/cosmosApi'
 
-import { createCategory, fetchCategories } from '../api/categoriesApi'
+import {
+  createCategory,
+  createCategoryField,
+  fetchCategories,
+  fetchCategoryFields,
+} from '../api/categoriesApi'
 
 import {
   createProduct,
@@ -25,7 +30,7 @@ import {
 } from '../lib/productCosmos'
 
 import type { CosmosGtinProductDto } from '../types/cosmos'
-import type { CategoryResponse, ProductWritePayload } from '../types/product'
+import type { CategoryFieldResponse, CategoryResponse, ProductWritePayload } from '../types/product'
 
 const empty: ProductWritePayload = {
   sku: '',
@@ -98,13 +103,19 @@ export function ProductFormPage() {
   const [categorySuggestionsOpen, setCategorySuggestionsOpen] = useState(false)
   const [loading, setLoading] = useState(isEdit)
   const [error, setError] = useState<string | null>(null)
+  const [categoryFieldError, setCategoryFieldError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [cosmosLoading, setCosmosLoading] = useState(false)
   const [cosmosPreview, setCosmosPreview] = useState<CosmosGtinProductDto | null>(null)
   const [profitPercent, setProfitPercent] = useState(0)
+  const [categoryFields, setCategoryFields] = useState<CategoryFieldResponse[]>([])
+  const [customFields, setCustomFields] = useState<Record<string, string>>({})
+  const [newCategoryFieldName, setNewCategoryFieldName] = useState('')
+  const [addingCategoryField, setAddingCategoryField] = useState(false)
 
   const existingSkusRef = useRef<Set<string> | null>(null)
   const reservedInternalSkusRef = useRef<Set<string>>(new Set())
+  const categoryFieldRef = useRef<HTMLDivElement>(null)
 
   const ensureExistingSkus = async (): Promise<Set<string>> => {
     if (existingSkusRef.current == null) {
@@ -122,6 +133,9 @@ export function ProductFormPage() {
     existingSkusRef.current = null
     setCosmosPreview(null)
     setProfitPercent(0)
+    setCustomFields({})
+    setCategoryFields([])
+    setNewCategoryFieldName('')
   }, [id])
 
   useEffect(() => {
@@ -161,6 +175,7 @@ export function ProductFormPage() {
         setProfitPercent(profitPercentFromPaidAndSale(p.paidAmount ?? 0, p.price))
         setCategoryInput(p.category)
         setCosmosPreview(cosmosDtoFromProductResponse(p))
+        setCustomFields(p.customFields ?? {})
       } catch (e) {
         if (!cancelled) setError(getApiErrorMessage(e))
       } finally {
@@ -199,6 +214,11 @@ export function ProductFormPage() {
     }
   }, [isEdit])
 
+  useEffect(() => {
+    if (!categoryFieldError) return
+    categoryFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [categoryFieldError])
+
   const filteredCategories = useMemo(() => {
     const q = normalizeName(categoryInput)
     if (!q) return []
@@ -206,6 +226,34 @@ export function ProductFormPage() {
       .filter((c) => normalizeName(c.name).startsWith(q))
       .slice(0, 3)
   }, [categories, categoryInput])
+
+  useEffect(() => {
+    if (!form.categoryId) {
+      setCategoryFields([])
+      setCustomFields({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const fields = await fetchCategoryFields(form.categoryId)
+        if (cancelled) return
+        setCategoryFields(fields)
+        setCustomFields((prev) => {
+          const next: Record<string, string> = {}
+          for (const f of fields) next[f.id] = prev[f.id] ?? ''
+          return next
+        })
+      } catch {
+        if (!cancelled) {
+          setCategoryFields([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [form.categoryId])
 
   const onChange =
     (field: keyof ProductWritePayload) =>
@@ -222,19 +270,18 @@ export function ProductFormPage() {
     const v = e.target.value
     const newPaid = v === '' ? 0 : Number(v)
     if (!Number.isFinite(newPaid)) return
-    setForm((f) => {
-      const prevPaid = f.paidAmount
-      if (newPaid <= 0) {
-        return { ...f, paidAmount: newPaid }
-      }
-      if (prevPaid <= 0 && f.price > 0) {
-        const pct = profitPercentFromPaidAndSale(newPaid, f.price)
-        setProfitPercent(pct)
-        return { ...f, paidAmount: newPaid }
-      }
-      const nextPrice = saleFromPaidAndPercent(newPaid, profitPercent)
-      return { ...f, paidAmount: newPaid, price: nextPrice }
-    })
+
+    if (newPaid <= 0) {
+      setForm((f) => ({ ...f, paidAmount: newPaid }))
+      return
+    }
+    if (form.paidAmount <= 0 && form.price > 0) {
+      setProfitPercent(profitPercentFromPaidAndSale(newPaid, form.price))
+      setForm((f) => ({ ...f, paidAmount: newPaid }))
+      return
+    }
+    const nextPrice = saleFromPaidAndPercent(newPaid, profitPercent)
+    setForm((f) => ({ ...f, paidAmount: newPaid, price: nextPrice }))
   }
 
   const onProfitPercentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,13 +299,14 @@ export function ProductFormPage() {
     const v = e.target.value
     const newPrice = v === '' ? 0 : Number(v)
     if (!Number.isFinite(newPrice)) return
-    setForm((f) => {
-      if (f.paidAmount > 0) setProfitPercent(profitPercentFromPaidAndSale(f.paidAmount, newPrice))
-      return { ...f, price: newPrice }
-    })
+    if (form.paidAmount > 0) {
+      setProfitPercent(profitPercentFromPaidAndSale(form.paidAmount, newPrice))
+    }
+    setForm((f) => ({ ...f, price: newPrice }))
   }
 
   const pickCategory = (c: CategoryResponse) => {
+    setCategoryFieldError(null)
     setCategoryInput(c.name)
     setForm((f) => ({ ...f, categoryId: c.id }))
     setCategorySuggestionsOpen(false)
@@ -268,6 +316,7 @@ export function ProductFormPage() {
     setCategoryInput(value)
     const match = categories.find((c) => normalizeName(c.name) === normalizeName(value))
     setForm((f) => ({ ...f, categoryId: match?.id ?? '' }))
+    if (match) setCategoryFieldError(null)
   }
 
   const applyCosmosPreview = (dto: Awaited<ReturnType<typeof fetchCosmosGtin>>) => {
@@ -327,6 +376,27 @@ export function ProductFormPage() {
     })()
   }
 
+  const handleAddCategoryField = async () => {
+    const name = newCategoryFieldName.trim()
+    if (!form.categoryId || !name) return
+    setAddingCategoryField(true)
+    setError(null)
+    try {
+      const created = await createCategoryField(form.categoryId, name)
+      setCategoryFields((prev) =>
+        [...prev, created].sort(
+          (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'pt-BR'),
+        ),
+      )
+      setCustomFields((prev) => ({ ...prev, [created.id]: '' }))
+      setNewCategoryFieldName('')
+    } catch (err) {
+      setError(getApiErrorMessage(err))
+    } finally {
+      setAddingCategoryField(false)
+    }
+  }
+
   const generateInternalSku = () => {
     void (async () => {
       const existing = await ensureExistingSkus()
@@ -339,6 +409,7 @@ export function ProductFormPage() {
     e.preventDefault()
     setSaving(true)
     setError(null)
+    setCategoryFieldError(null)
 
     let categoryId = form.categoryId
     const typed = categoryInput.trim()
@@ -356,7 +427,9 @@ export function ProductFormPage() {
       }
 
       if (!categoryId) {
-        setError('Informe uma categoria (digite um nome novo ou escolha uma existente na lista).')
+        setCategoryFieldError(
+          'Informe uma categoria (digite um nome novo ou escolha uma existente na lista).',
+        )
         setSaving(false)
         return
       }
@@ -366,6 +439,7 @@ export function ProductFormPage() {
         categoryId,
         description: form.description.trim() ? form.description : '',
         skuSource: form.skuSource,
+        customFields,
       }
 
       if (isEdit && id) {
@@ -528,42 +602,62 @@ export function ProductFormPage() {
                 <span className="form-label">
                   Categoria <span className="required">*</span>
                 </span>
-                <div className="category-combobox">
-                  <input
-                    type="text"
-                    name="categoryName"
-                    value={categoryInput}
-                    onChange={(e) => onCategoryInputChange(e.target.value)}
-                    onFocus={() => setCategorySuggestionsOpen(true)}
-                    onBlur={() => {
-                      window.setTimeout(() => setCategorySuggestionsOpen(false), 180)
-                    }}
-                    autoComplete="off"
-                    placeholder="Digite ou escolha uma categoria"
-                    aria-autocomplete="list"
-                    aria-expanded={categorySuggestionsOpen}
-                  />
-                  {categorySuggestionsOpen && filteredCategories.length > 0 && (
-                    <ul className="category-suggestions" role="listbox">
-                      {filteredCategories.map((c) => (
-                        <li
-                          key={c.id}
-                          role="option"
-                          className="category-suggestion"
-                          onMouseDown={(ev) => {
-                            ev.preventDefault()
-                            pickCategory(c)
-                          }}
-                        >
-                          {c.name}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <div ref={categoryFieldRef} className="category-field-block">
+                  <div className="category-combobox">
+                    <input
+                      type="text"
+                      name="categoryName"
+                      id="product-category-input"
+                      value={categoryInput}
+                      onChange={(e) => onCategoryInputChange(e.target.value)}
+                      onFocus={() => setCategorySuggestionsOpen(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setCategorySuggestionsOpen(false), 180)
+                      }}
+                      autoComplete="off"
+                      placeholder="Digite ou escolha uma categoria"
+                      aria-autocomplete="list"
+                      aria-expanded={categorySuggestionsOpen}
+                      aria-invalid={Boolean(categoryFieldError)}
+                      aria-describedby={
+                        categoryFieldError
+                          ? 'category-field-error-msg category-combobox-hint-text'
+                          : 'category-combobox-hint-text'
+                      }
+                      className={categoryFieldError ? 'field-invalid' : undefined}
+                    />
+                    {categorySuggestionsOpen && filteredCategories.length > 0 && (
+                      <ul className="category-suggestions" role="listbox">
+                        {filteredCategories.map((c) => (
+                          <li
+                            key={c.id}
+                            role="option"
+                            className="category-suggestion"
+                            onMouseDown={(ev) => {
+                              ev.preventDefault()
+                              pickCategory(c)
+                            }}
+                          >
+                            {c.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {categoryFieldError ? (
+                    <div
+                      id="category-field-error-msg"
+                      className="field-inline-error"
+                      role="alert"
+                    >
+                      <AlertCircle size={14} aria-hidden />
+                      {categoryFieldError}
+                    </div>
+                  ) : null}
+                  <span id="category-combobox-hint-text" className="category-combobox-hint">
+                    Nomes novos são criados ao salvar o produto.
+                  </span>
                 </div>
-                <span className="category-combobox-hint">
-                  Nomes novos são criados ao salvar o produto.
-                </span>
               </label>
 
               <label>
@@ -622,6 +716,71 @@ export function ProductFormPage() {
                   placeholder="1"
                 />
               </label>
+
+              {form.categoryId ? (
+                <div className="full detail-section nested-category-fields">
+                  <div className="detail-section-header">
+                    <Tags size={14} />
+                    Campos da categoria
+                  </div>
+                  <div style={{ padding: '16px 20px' }}>
+                    <p className="text-muted" style={{ margin: '0 0 12px', fontSize: '0.88rem' }}>
+                      Preencha os valores deste produto. Para criar ou remover definições de campos, use a
+                      página{' '}
+                      <Link to="/categories">Categorias</Link>
+                      .
+                    </p>
+                    {categoryFields.length === 0 ? (
+                      <p className="text-muted" style={{ margin: '0 0 12px', fontSize: '0.88rem' }}>
+                        Esta categoria ainda não tem campos extra. Adicione um nome abaixo para criar e
+                        associar a esta categoria.
+                      </p>
+                    ) : (
+                      <div className="form-grid" style={{ marginBottom: 12 }}>
+                        {categoryFields.map((f) => (
+                          <label key={f.id}>
+                            <span className="form-label">{f.name}</span>
+                            <input
+                              type="text"
+                              value={customFields[f.id] ?? ''}
+                              onChange={(e) =>
+                                setCustomFields((prev) => ({ ...prev, [f.id]: e.target.value }))
+                              }
+                              maxLength={2000}
+                              placeholder="—"
+                              autoComplete="off"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <div className="category-add-field-row">
+                      <input
+                        type="text"
+                        value={newCategoryFieldName}
+                        onChange={(e) => setNewCategoryFieldName(e.target.value)}
+                        placeholder="Novo campo (nome)"
+                        maxLength={128}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void handleAddCategoryField()
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={addingCategoryField || !newCategoryFieldName.trim()}
+                        onClick={() => void handleAddCategoryField()}
+                      >
+                        <Plus size={14} />
+                        {addingCategoryField ? 'Criando…' : 'Criar campo na categoria'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <label className="full">
                 Descrição

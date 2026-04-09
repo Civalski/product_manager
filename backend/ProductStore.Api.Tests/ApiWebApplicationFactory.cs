@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ProductStore.Api.Data;
+using ProductStore.Api.Domain;
 using ProductStore.Api.Models;
 using ProductStore.Api.Services;
 
@@ -60,8 +61,8 @@ public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         if (!tenantDb.Categories.Any())
         {
             tenantDb.Categories.AddRange(
-                new Category { Id = Guid.NewGuid(), Name = "Acessório" },
-                new Category { Id = Guid.NewGuid(), Name = "Eletrônico" });
+                new Category { Id = Guid.NewGuid(), Name = "Acessório", NormalizedName = CategoryRules.NormalizeCategoryName("Acessório") },
+                new Category { Id = Guid.NewGuid(), Name = "Eletrônico", NormalizedName = CategoryRules.NormalizeCategoryName("Eletrônico") });
             tenantDb.SaveChanges();
         }
 

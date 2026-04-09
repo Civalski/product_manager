@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<Category> Categories => Set<Category>();
 
+    public DbSet<CategoryFieldDefinition> CategoryFieldDefinitions => Set<CategoryFieldDefinition>();
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -29,6 +31,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(c => c.Id);
 
             e.Property(c => c.Name).HasMaxLength(128).IsRequired();
+
+            e.Property(c => c.NormalizedName).HasMaxLength(128).IsRequired();
+
+            e.HasIndex(c => c.NormalizedName).IsUnique();
+
+            e.HasMany(c => c.FieldDefinitions)
+                .WithOne(f => f.Category)
+                .HasForeignKey(f => f.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+        });
+
+
+
+        modelBuilder.Entity<CategoryFieldDefinition>(e =>
+
+        {
+
+            e.HasKey(f => f.Id);
+
+            e.Property(f => f.Name).HasMaxLength(128).IsRequired();
+
+            e.Property(f => f.NormalizedName).HasMaxLength(128).IsRequired();
+
+            e.HasIndex(f => new { f.CategoryId, f.NormalizedName }).IsUnique();
 
         });
 
@@ -75,6 +102,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.CosmosGpcCode).HasMaxLength(64);
 
             e.Property(p => p.CosmosGpcDescription).HasMaxLength(2000);
+
+            e.Property(p => p.CustomFieldValuesJson).HasColumnType("TEXT");
 
             e.Property(p => p.Price).HasPrecision(18, 2);
 

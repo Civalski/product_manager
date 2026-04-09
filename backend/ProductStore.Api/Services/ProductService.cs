@@ -38,6 +38,16 @@ public class ProductService(
         PropertyNameCaseInsensitive = true,
     };
 
+    private static readonly JsonSerializerOptions CustomFieldsJsonWriteOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static readonly JsonSerializerOptions CustomFieldsJsonReadOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     public async Task<ProductResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
     {
         string skuNormalized;
@@ -94,6 +104,12 @@ public class ProductService(
             ApplyCosmosRealSkuColumns(entity, cosmosDto!, skuNormalized);
         else
             ClearCosmosRealSkuColumns(entity);
+
+        entity.CustomFieldValuesJson = await NormalizeAndSerializeCustomFieldsAsync(
+            db,
+            request.CategoryId,
+            request.CustomFields,
+            cancellationToken);
 
         db.Products.Add(entity);
         try
@@ -166,6 +182,20 @@ public class ProductService(
             ApplyCosmosRealSkuColumns(entity, cosmosDto!, skuNormalized);
         else
             ClearCosmosRealSkuColumns(entity);
+
+        var categoryChanged = entity.CategoryId != request.CategoryId;
+        if (request.CustomFields != null)
+        {
+            entity.CustomFieldValuesJson = await NormalizeAndSerializeCustomFieldsAsync(
+                db,
+                request.CategoryId,
+                request.CustomFields,
+                cancellationToken);
+        }
+        else if (categoryChanged)
+        {
+            entity.CustomFieldValuesJson = null;
+        }
 
         try
         {
@@ -383,7 +413,57 @@ public class ProductService(
             p.CategoryId,
             categoryName,
             ParseCosmosMetadata(p.CosmosMetadataJson),
-            BuildRealSku(p));
+            BuildRealSku(p),
+            ParseProductCustomFields(p.CustomFieldValuesJson));
+
+    private static async Task<string?> NormalizeAndSerializeCustomFieldsAsync(
+        AppDbContext db,
+        Guid categoryId,
+        Dictionary<string, string>? incoming,
+        CancellationToken cancellationToken)
+    {
+        if (incoming is null || incoming.Count == 0)
+            return null;
+
+        var validIds = await db.CategoryFieldDefinitions.AsNoTracking()
+            .Where(f => f.CategoryId == categoryId)
+            .Select(f => f.Id)
+            .ToListAsync(cancellationToken);
+        var validSet = validIds.ToHashSet();
+
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kv in incoming)
+        {
+            var keyRaw = kv.Key?.Trim() ?? string.Empty;
+            if (!Guid.TryParse(keyRaw, out var fieldId))
+                throw new InvalidProductCustomFieldsException($"Identificador de campo inválido: \"{keyRaw}\".");
+            if (!validSet.Contains(fieldId))
+                throw new InvalidProductCustomFieldsException(
+                    $"O campo ({fieldId}) não pertence à categoria selecionada.");
+            var v = kv.Value ?? string.Empty;
+            if (v.Length > 2000)
+                throw new InvalidProductCustomFieldsException(
+                    "O valor de um campo personalizado excede 2000 caracteres.");
+            result[fieldId.ToString("D")] = v;
+        }
+
+        return JsonSerializer.Serialize(result, CustomFieldsJsonWriteOptions);
+    }
+
+    private static IReadOnlyDictionary<string, string>? ParseProductCustomFields(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        try
+        {
+            var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json, CustomFieldsJsonReadOptions);
+            return dict is not { Count: > 0 } ? null : dict;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static void ApplyCosmosRealSkuColumns(Product entity, CosmosGtinProductDto dto, string normalizedGtinDigits)
     {

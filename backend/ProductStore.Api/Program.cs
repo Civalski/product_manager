@@ -52,9 +52,11 @@ DotEnvBootstrap.TryLoadDotEnvFiles();
 var builder = WebApplication.CreateBuilder(args);
 
 // Render / Docker / reverse proxy: X-Forwarded-For e RemoteIpAddress corretos para rate limit e Turnstile siteverify.
+// ForwardLimit = 1: Render usa um proxy; aceitar apenas o último salto impede clientes de falsificar o IP via X-Forwarded-For.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });

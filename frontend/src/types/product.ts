@@ -52,6 +52,9 @@ export interface ProductResponse {
   /** Campos normalizados do produto real (preferir na UI em relação ao JSON bruto). */
   realSku?: RealSkuFromCosmos | null
 
+  /** Valores por Id do campo definido na categoria (GUID). */
+  customFields?: Record<string, string> | null
+
 }
 
 
@@ -88,6 +91,9 @@ export interface ProductWritePayload {
 
   skuSource: SkuSource
 
+  /** Chaves = Id (GUID) dos campos da categoria. */
+  customFields?: Record<string, string>
+
 }
 
 
@@ -97,6 +103,18 @@ export interface CategoryResponse {
   id: string
 
   name: string
+
+}
+
+export interface CategoryFieldResponse {
+
+  id: string
+
+  categoryId: string
+
+  name: string
+
+  sortOrder: number
 
 }
 

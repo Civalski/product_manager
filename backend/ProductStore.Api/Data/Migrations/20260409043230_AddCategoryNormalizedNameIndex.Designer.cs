@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProductStore.Api.Data;
 
@@ -10,9 +11,11 @@ using ProductStore.Api.Data;
 namespace ProductStore.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260409043230_AddCategoryNormalizedNameIndex")]
+    partial class AddCategoryNormalizedNameIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
@@ -39,36 +42,6 @@ namespace ProductStore.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Categories");
-                });
-
-            modelBuilder.Entity("ProductStore.Api.Models.CategoryFieldDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CategoryId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NormalizedName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId", "NormalizedName")
-                        .IsUnique();
-
-                    b.ToTable("CategoryFieldDefinitions");
                 });
 
             modelBuilder.Entity("ProductStore.Api.Models.Product", b =>
@@ -150,9 +123,6 @@ namespace ProductStore.Api.Data.Migrations
                     b.Property<double?>("CosmosWidth")
                         .HasColumnType("REAL");
 
-                    b.Property<string>("CustomFieldValuesJson")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
@@ -199,21 +169,8 @@ namespace ProductStore.Api.Data.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("ProductStore.Api.Models.CategoryFieldDefinition", b =>
-                {
-                    b.HasOne("ProductStore.Api.Models.Category", "Category")
-                        .WithMany("FieldDefinitions")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-                });
-
             modelBuilder.Entity("ProductStore.Api.Models.Category", b =>
                 {
-                    b.Navigation("FieldDefinitions");
-
                     b.Navigation("Products");
                 });
 #pragma warning restore 612, 618
