@@ -169,6 +169,8 @@ public class ProductService(
 
         EnsureElectronicsMinPrice(category.Name, price);
 
+        var previousCategoryId = entity.CategoryId;
+
         entity.Sku = skuNormalized;
         entity.Name = name;
         entity.Description = description;
@@ -183,7 +185,7 @@ public class ProductService(
         else
             ClearCosmosRealSkuColumns(entity);
 
-        var categoryChanged = entity.CategoryId != request.CategoryId;
+        var categoryChanged = previousCategoryId != request.CategoryId;
         if (request.CustomFields != null)
         {
             entity.CustomFieldValuesJson = await NormalizeAndSerializeCustomFieldsAsync(

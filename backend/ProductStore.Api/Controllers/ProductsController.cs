@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ProductStore.Api.DTOs;
 using ProductStore.Api.Services;
 
@@ -8,6 +9,7 @@ namespace ProductStore.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[EnableRateLimiting("api-global")]
 [Route("api/[controller]")]
 public class ProductsController(
     IProductService productService,

@@ -18,7 +18,7 @@ namespace ProductStore.Api.Data.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            // SQLite LOWER cobre a maioria dos casos; a normalização completa (acentos) é feita na app ao criar/editar.
+            // Preenchimento mínimo para satisfazer o índice único antes do backfill em C# (acentos: CategoryNormalizedNameSync.AfterMigrate).
             migrationBuilder.Sql("UPDATE Categories SET NormalizedName = LOWER(TRIM(Name)) WHERE NormalizedName = ''");
 
             migrationBuilder.CreateIndex(

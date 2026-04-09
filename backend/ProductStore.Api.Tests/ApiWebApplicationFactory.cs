@@ -57,6 +57,7 @@ public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         var tenantFactory = scope.ServiceProvider.GetRequiredService<ITenantAppDbContextFactory>();
         using var tenantDb = tenantFactory.CreateDbContext();
         tenantDb.Database.Migrate();
+        CategoryNormalizedNameSync.AfterMigrate(tenantDb);
 
         if (!tenantDb.Categories.Any())
         {

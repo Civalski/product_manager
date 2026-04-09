@@ -38,6 +38,7 @@ public sealed class TenantAppDbContextFactory(
             try
             {
                 db.Database.Migrate();
+                CategoryNormalizedNameSync.AfterMigrate(db);
                 logger.LogInformation("Migrações aplicadas ao tenant {UserId}", userId);
             }
             catch (Exception ex)

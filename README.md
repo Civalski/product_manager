@@ -62,7 +62,9 @@ Edite `.env` na raiz (ou `backend/ProductStore.Api/.env` — o último carregado
 - **Turnstile** (`Turnstile__SecretKey` na raiz + `VITE_TURNSTILE_SITE_KEY` no frontend): necessários em builds de produção; em **Development** a API dispensa o widget.
 - **Frontend local**: deixe `VITE_API_BASE_URL` vazio — o proxy do Vite encaminha `/api` para a porta 5127.
 
-Em **produção** (Render): `Jwt__Key` (≥32 caracteres), `CORS_ORIGINS` com a origem Vercel, e opcionalmente `AllowedHosts`.
+Em **produção** (Render): `Jwt__Key` (≥32 caracteres), `CORS_ORIGINS` com a origem Vercel (**obrigatório** em produção), e opcionalmente `AllowedHosts`.
+
+⚠️ **IMPORTANTE**: Nunca versionar ficheiros `.env` com credenciais reais. Use apenas `.env.example` como modelo.
 
 Na primeira execução são criados `data/identity.db` (contas) e, por cada registo, `data/users/{id}.db` (produtos e categorias desse utilizador). Em desenvolvimento, os ficheiros ficam em `data/` na raiz do repositório.
 
@@ -71,7 +73,7 @@ Na primeira execução são criados `data/identity.db` (contas) e, por cada regi
 | Serviço | O quê |
 |---------|--------|
 | **Vercel** | Frontend React (Vite). **Root Directory:** `frontend`. Configuração em `frontend/vercel.json` (build, `dist`, rewrites SPA). Variáveis: `VITE_API_BASE_URL` (URL pública da API, sem barra final), `VITE_TURNSTILE_SITE_KEY`. |
-| **Render** | API via **Docker** (`Dockerfile` na raiz): imagem multi-stage, utilizador não-root, `PORT` e `ASPNETCORE_URLS` conforme documentação Render. Variáveis: `Jwt__Key`, `Cosmos__Token`, `Turnstile__SecretKey`, `CORS_ORIGINS`, opcionalmente `AllowedHosts`. |
+| **Render** | API via **Docker** (`Dockerfile` na raiz): imagem multi-stage, utilizador não-root, `PORT` e `ASPNETCORE_URLS` conforme documentação Render. Variáveis **obrigatórias**: `Jwt__Key` (≥32 caracteres), `CORS_ORIGINS` (origem Vercel), `Turnstile__SecretKey`. Opcionais: `Cosmos__Token`, `AllowedHosts`. |
 
 O backend confia no último salto de `X-Forwarded-For` (`ForwardLimit = 1`), adequado a um proxy único como o da Render.
 

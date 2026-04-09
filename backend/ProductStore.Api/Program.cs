@@ -409,11 +409,43 @@ builder.Services.AddRateLimiter(options =>
 
     });
 
+    options.AddPolicy("api-global", httpContext =>
+
+    {
+
+        var ip = ClientIpResolver.GetClientIpAddress(httpContext) ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+
+        {
+
+            PermitLimit = 100,
+
+            Window = TimeSpan.FromMinutes(1),
+
+            QueueLimit = 0,
+
+            AutoReplenishment = true,
+
+        });
+
+    });
+
 });
 
 
 
 JwtOptions.ThrowIfJwtKeyUnsafeForEnvironment(builder.Environment, builder.Configuration, isIntegrationTesting);
+
+if (!builder.Environment.IsDevelopment() && !isIntegrationTesting && prodCorsOrigins.Length == 0)
+
+{
+
+    throw new InvalidOperationException(
+
+        "CORS_ORIGINS deve ser configurado em produção. Defina a variável de ambiente CORS_ORIGINS com as origens permitidas (ex.: https://seu-dominio.vercel.app).");
+
+}
 
 var app = builder.Build();
 
@@ -429,7 +461,7 @@ if (app.Environment.IsDevelopment())
 
 }
 
-else if (prodCorsOrigins.Length > 0)
+else
 
 {
 
@@ -440,6 +472,32 @@ else if (prodCorsOrigins.Length > 0)
 
 
 app.UseExceptionHandler();
+
+
+
+app.Use(async (context, next) =>
+
+{
+
+    if (!app.Environment.IsDevelopment())
+
+    {
+
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+
+        context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+
+        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+
+        context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+
+    }
+
+    await next();
+
+});
 
 
 

@@ -21,5 +21,6 @@ public sealed class TenantDatabaseProvisioner(IWebHostEnvironment env)
 
         await using var db = new AppDbContext(options);
         await db.Database.MigrateAsync(cancellationToken);
+        CategoryNormalizedNameSync.AfterMigrate(db);
     }
 }

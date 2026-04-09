@@ -116,6 +116,9 @@ export function ProductFormPage() {
   const existingSkusRef = useRef<Set<string> | null>(null)
   const reservedInternalSkusRef = useRef<Set<string>>(new Set())
   const categoryFieldRef = useRef<HTMLDivElement>(null)
+  /** Espelho síncrono de `profitPercent` para handlers que calculam preço sem estado obsoleto do closure. */
+  const profitPercentRef = useRef(0)
+  profitPercentRef.current = profitPercent
 
   const ensureExistingSkus = async (): Promise<Set<string>> => {
     if (existingSkusRef.current == null) {
@@ -275,13 +278,14 @@ export function ProductFormPage() {
       setForm((f) => ({ ...f, paidAmount: newPaid }))
       return
     }
-    if (form.paidAmount <= 0 && form.price > 0) {
-      setProfitPercent(profitPercentFromPaidAndSale(newPaid, form.price))
-      setForm((f) => ({ ...f, paidAmount: newPaid }))
-      return
-    }
-    const nextPrice = saleFromPaidAndPercent(newPaid, profitPercent)
-    setForm((f) => ({ ...f, paidAmount: newPaid, price: nextPrice }))
+    setForm((f) => {
+      if (f.paidAmount <= 0 && f.price > 0) {
+        setProfitPercent(profitPercentFromPaidAndSale(newPaid, f.price))
+        return { ...f, paidAmount: newPaid }
+      }
+      const nextPrice = saleFromPaidAndPercent(newPaid, profitPercentRef.current)
+      return { ...f, paidAmount: newPaid, price: nextPrice }
+    })
   }
 
   const onProfitPercentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,10 +303,12 @@ export function ProductFormPage() {
     const v = e.target.value
     const newPrice = v === '' ? 0 : Number(v)
     if (!Number.isFinite(newPrice)) return
-    if (form.paidAmount > 0) {
-      setProfitPercent(profitPercentFromPaidAndSale(form.paidAmount, newPrice))
-    }
-    setForm((f) => ({ ...f, price: newPrice }))
+    setForm((f) => {
+      if (f.paidAmount > 0) {
+        setProfitPercent(profitPercentFromPaidAndSale(f.paidAmount, newPrice))
+      }
+      return { ...f, price: newPrice }
+    })
   }
 
   const pickCategory = (c: CategoryResponse) => {
