@@ -37,6 +37,9 @@ export interface ProductResponse {
 
   price: number
 
+  /** Custo de aquisição (valor pago). */
+  paidAmount: number
+
   stock: number
 
   categoryId: string
@@ -76,6 +79,8 @@ export interface ProductWritePayload {
   description: string
 
   price: number
+
+  paidAmount: number
 
   stock: number
 

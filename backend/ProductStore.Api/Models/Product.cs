@@ -16,6 +16,9 @@ public class Product
 
     public decimal Price { get; set; }
 
+    /// <summary>Custo de aquisição (valor pago).</summary>
+    public decimal PaidAmount { get; set; }
+
     public int Stock { get; set; }
 
     public Guid CategoryId { get; set; }

@@ -17,7 +17,11 @@ using Microsoft.EntityFrameworkCore;
 
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
+using Microsoft.AspNetCore.RateLimiting;
+
 using Microsoft.IdentityModel.Tokens;
+
+using System.Threading.RateLimiting;
 
 using System.Net.Http.Headers;
 
@@ -100,7 +104,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
         options.User.RequireUniqueEmail = false;
 
-        options.Password.RequiredLength = 6;
+        options.Password.RequiredLength = 8;
 
         options.Password.RequireDigit = true;
 
@@ -108,7 +112,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
         options.Password.RequireUppercase = false;
 
-        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireNonAlphanumeric = true;
 
     })
 
@@ -329,6 +333,72 @@ builder.Services.AddCors(o =>
 
 
 
+builder.Services.AddRateLimiter(options =>
+
+{
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, _) =>
+
+    {
+
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+
+            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
+
+        await ValueTask.CompletedTask;
+
+    };
+
+    options.AddPolicy("auth-login", httpContext =>
+
+    {
+
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+
+        {
+
+            PermitLimit = 10,
+
+            Window = TimeSpan.FromMinutes(1),
+
+            QueueLimit = 0,
+
+            AutoReplenishment = true,
+
+        });
+
+    });
+
+    options.AddPolicy("auth-register", httpContext =>
+
+    {
+
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+
+        {
+
+            PermitLimit = 5,
+
+            Window = TimeSpan.FromMinutes(1),
+
+            QueueLimit = 0,
+
+            AutoReplenishment = true,
+
+        });
+
+    });
+
+});
+
+
+
 var app = builder.Build();
 
 
@@ -410,6 +480,10 @@ app.Use(async (context, next) =>
             sw.ElapsedMilliseconds);
 
 });
+
+
+
+app.UseRateLimiter();
 
 
 

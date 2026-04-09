@@ -32,9 +32,25 @@ const empty: ProductWritePayload = {
   name: '',
   description: '',
   price: 0,
+  paidAmount: 0,
   stock: 1,
   categoryId: '',
   skuSource: 'internal',
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/** Margem de lucro em % sobre o valor pago (venda = pago × (1 + %/100)). */
+function profitPercentFromPaidAndSale(paid: number, sale: number): number {
+  if (!Number.isFinite(paid) || paid <= 0 || !Number.isFinite(sale)) return 0
+  return Math.round((sale / paid - 1) * 10000) / 100
+}
+
+function saleFromPaidAndPercent(paid: number, pct: number): number {
+  if (!Number.isFinite(paid) || paid <= 0) return 0
+  return roundMoney(paid * (1 + (Number.isFinite(pct) ? pct : 0) / 100))
 }
 
 /** Alinha com o backend: mesma categoria independente de maiúsculas e acentos. */
@@ -85,6 +101,7 @@ export function ProductFormPage() {
   const [saving, setSaving] = useState(false)
   const [cosmosLoading, setCosmosLoading] = useState(false)
   const [cosmosPreview, setCosmosPreview] = useState<CosmosGtinProductDto | null>(null)
+  const [profitPercent, setProfitPercent] = useState(0)
 
   const existingSkusRef = useRef<Set<string> | null>(null)
   const reservedInternalSkusRef = useRef<Set<string>>(new Set())
@@ -104,6 +121,7 @@ export function ProductFormPage() {
     reservedInternalSkusRef.current = new Set()
     existingSkusRef.current = null
     setCosmosPreview(null)
+    setProfitPercent(0)
   }, [id])
 
   useEffect(() => {
@@ -135,10 +153,12 @@ export function ProductFormPage() {
           name: p.name,
           description: p.description ?? '',
           price: p.price,
+          paidAmount: p.paidAmount ?? 0,
           stock: p.stock,
           categoryId: p.categoryId,
           skuSource: isCosmosBackedProduct(p) ? 'cosmosGtin' : 'internal',
         })
+        setProfitPercent(profitPercentFromPaidAndSale(p.paidAmount ?? 0, p.price))
         setCategoryInput(p.category)
         setCosmosPreview(cosmosDtoFromProductResponse(p))
       } catch (e) {
@@ -191,13 +211,52 @@ export function ProductFormPage() {
     (field: keyof ProductWritePayload) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const v = e.target.value
-      if (field === 'price') setForm((f) => ({ ...f, price: v === '' ? 0 : Number(v) }))
-      else if (field === 'stock')
+      if (field === 'stock')
         setForm((f) => ({ ...f, stock: v === '' ? 0 : Number.parseInt(v, 10) }))
       else if (field === 'categoryId') setForm((f) => ({ ...f, categoryId: v }))
       else if (field === 'skuSource') return
       else setForm((f) => ({ ...f, [field]: v }))
     }
+
+  const onPaidAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    const newPaid = v === '' ? 0 : Number(v)
+    if (!Number.isFinite(newPaid)) return
+    setForm((f) => {
+      const prevPaid = f.paidAmount
+      if (newPaid <= 0) {
+        return { ...f, paidAmount: newPaid }
+      }
+      if (prevPaid <= 0 && f.price > 0) {
+        const pct = profitPercentFromPaidAndSale(newPaid, f.price)
+        setProfitPercent(pct)
+        return { ...f, paidAmount: newPaid }
+      }
+      const nextPrice = saleFromPaidAndPercent(newPaid, profitPercent)
+      return { ...f, paidAmount: newPaid, price: nextPrice }
+    })
+  }
+
+  const onProfitPercentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    const pct = v === '' ? 0 : Number(v)
+    if (!Number.isFinite(pct)) return
+    setProfitPercent(pct)
+    setForm((f) => {
+      if (f.paidAmount <= 0) return f
+      return { ...f, price: saleFromPaidAndPercent(f.paidAmount, pct) }
+    })
+  }
+
+  const onSalePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    const newPrice = v === '' ? 0 : Number(v)
+    if (!Number.isFinite(newPrice)) return
+    setForm((f) => {
+      if (f.paidAmount > 0) setProfitPercent(profitPercentFromPaidAndSale(f.paidAmount, newPrice))
+      return { ...f, price: newPrice }
+    })
+  }
 
   const pickCategory = (c: CategoryResponse) => {
     setCategoryInput(c.name)
@@ -216,16 +275,19 @@ export function ProductFormPage() {
     setForm((f) => {
       const gtinStr = dto.gtin != null ? String(dto.gtin) : f.sku.replace(/\D/g, '')
       const draftDesc = buildCosmosDescriptionDraft(dto)
-      return {
+      const nextPrice =
+        dto.avg_price != null && Number.isFinite(dto.avg_price) && dto.avg_price > 0
+          ? dto.avg_price
+          : f.price
+      const next = {
         ...f,
         sku: gtinStr,
         name: (dto.description?.trim() || f.name).trim(),
-        price:
-          dto.avg_price != null && Number.isFinite(dto.avg_price) && dto.avg_price > 0
-            ? dto.avg_price
-            : f.price,
+        price: nextPrice,
         description: f.description.trim() ? f.description : draftDesc,
       }
+      setProfitPercent(profitPercentFromPaidAndSale(next.paidAmount, next.price))
+      return next
     })
   }
 
@@ -505,8 +567,34 @@ export function ProductFormPage() {
               </label>
 
               <label>
+                <span className="form-label">Valor pago (R$)</span>
+                <input
+                  name="paidAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.paidAmount}
+                  onChange={onPaidAmountChange}
+                  placeholder="0,00 — custo de aquisição"
+                />
+              </label>
+
+              <label>
+                <span className="form-label">Lucro (% sobre o valor pago)</span>
+                <input
+                  name="profitPercent"
+                  type="number"
+                  step="0.01"
+                  value={profitPercent}
+                  onChange={onProfitPercentChange}
+                  placeholder="0"
+                  title="Altera o valor de venda para: valor pago × (1 + %/100)"
+                />
+              </label>
+
+              <label>
                 <span className="form-label">
-                  Preço (R$) <span className="required">*</span>
+                  Valor de venda (R$) <span className="required">*</span>
                 </span>
                 <input
                   name="price"
@@ -514,7 +602,7 @@ export function ProductFormPage() {
                   step="0.01"
                   min="0"
                   value={form.price}
-                  onChange={onChange('price')}
+                  onChange={onSalePriceChange}
                   required
                   placeholder="0.00"
                 />

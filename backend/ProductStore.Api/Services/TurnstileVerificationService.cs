@@ -1,11 +1,13 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ProductStore.Api.Configuration;
 
 namespace ProductStore.Api.Services;
 
 public sealed class TurnstileVerificationService(
+    IHostEnvironment hostEnvironment,
     IHttpClientFactory httpClientFactory,
     IOptions<TurnstileOptions> options,
     ILogger<TurnstileVerificationService> logger) : ITurnstileVerificationService
@@ -14,6 +16,9 @@ public sealed class TurnstileVerificationService(
 
     public async Task<bool> VerifyAsync(string turnstileToken, string? remoteIp, CancellationToken cancellationToken)
     {
+        if (hostEnvironment.IsDevelopment())
+            return true;
+
         if (string.IsNullOrWhiteSpace(_options.SecretKey))
         {
             logger.LogWarning("Turnstile:SecretKey não configurada; não é possível validar o widget.");

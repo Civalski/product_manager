@@ -1,23 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { ScrollText, ChevronDown, ChevronRight } from 'lucide-react'
 import { clearHttpLogs, getHttpLogs, subscribeHttpLogs } from '../lib/httpLog'
 import type { HttpLogEntry } from '../lib/httpLog'
 
-/** Copia o snapshot do store para o estado local (evita cache incorreto do useSyncExternalStore em alguns builds). */
-function useHttpLogs(modalOpen: boolean) {
-  const [logs, setLogs] = useState<HttpLogEntry[]>(() => [...getHttpLogs()])
-
-  useEffect(() => {
-    return subscribeHttpLogs(() => setLogs([...getHttpLogs()]))
-  }, [])
-
-  // Ao abrir o modal, alinha com o store (requisições que ocorreram antes da subscrição ou após falha de notificação).
-  useEffect(() => {
-    if (modalOpen) setLogs([...getHttpLogs()])
-  }, [modalOpen])
-
-  return logs
+function useHttpLogs() {
+  return useSyncExternalStore(subscribeHttpLogs, getHttpLogs, getHttpLogs) as readonly HttpLogEntry[]
 }
 
 function statusClass(status: number): string {
@@ -88,7 +76,7 @@ function LogRow({
 }
 
 export function HttpLogViewer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const logs = useHttpLogs(open)
+  const logs = useHttpLogs()
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const toggle = useCallback((id: string) => {

@@ -61,6 +61,8 @@ public record ProductResponse(
 
     decimal Price,
 
+    decimal PaidAmount,
+
     int Stock,
 
     Guid CategoryId,
@@ -85,6 +87,8 @@ public class CreateProductRequest
 
     public decimal Price { get; set; }
 
+    public decimal PaidAmount { get; set; }
+
     public int Stock { get; set; }
 
     public Guid CategoryId { get; set; }
@@ -107,6 +111,8 @@ public class UpdateProductRequest
     public string? Description { get; set; }
 
     public decimal Price { get; set; }
+
+    public decimal PaidAmount { get; set; }
 
     public int Stock { get; set; }
 
@@ -140,7 +146,7 @@ public class ProductListQuery
 
     public decimal? MaxPrice { get; set; }
 
-    /// <summary>available | out | low (estoque baixo ≤5)</summary>
+    /// <summary>available | low (estoque baixo ≤5)</summary>
 
     public string? StockFilter { get; set; }
 

@@ -401,7 +401,30 @@ export function ProductDetailPage() {
           <dd><span className="badge badge-accent">{product.category}</span></dd>
           <dt>
             <DollarSign size={13} style={{ marginRight: '6px', opacity: 0.5 }} />
-            Preço
+            Valor pago
+          </dt>
+          <dd>{money(product.paidAmount ?? 0)}</dd>
+          <dt>
+            <DollarSign size={13} style={{ marginRight: '6px', opacity: 0.5 }} />
+            Lucro
+          </dt>
+          <dd>
+            {product.paidAmount != null &&
+            product.paidAmount > 0 &&
+            Number.isFinite(product.price) ? (
+              <>
+                {(
+                  Math.round((product.price / product.paidAmount - 1) * 10000) / 100
+                ).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                % sobre o valor pago
+              </>
+            ) : (
+              <span style={{ opacity: 0.7 }}>—</span>
+            )}
+          </dd>
+          <dt>
+            <DollarSign size={13} style={{ marginRight: '6px', opacity: 0.5 }} />
+            Valor de venda
           </dt>
           <dd style={{ fontWeight: 600 }}>{money(product.price)}</dd>
           <dt>

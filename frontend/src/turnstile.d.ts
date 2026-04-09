@@ -7,6 +7,8 @@ declare global {
         container: HTMLElement | string,
         options: {
           sitekey: string
+          appearance?: 'always' | 'execute' | 'interaction-only'
+          size?: 'normal' | 'compact'
           callback?: (token: string) => void
           'expired-callback'?: () => void
           'error-callback'?: () => void

@@ -2,12 +2,14 @@
 
 Aplicação fullstack de gerenciamento de produtos com integração à API [Bluesoft Cosmos](https://cosmos.bluesoft.com.br/) para enriquecimento de dados por GTIN/código de barras.
 
+> **Prova técnica / revisão:** após clonar, execute `dotnet tool restore`, `npm install`, `npm install --prefix frontend`, copie `.env.example` → `.env` e rode `npm test` e `npm run build` para validar o ambiente. O fluxo de login usa Cloudflare Turnstile (ver secção *Autenticação*).
+
 ## Stack
 
 | Camada | Tecnologia |
 |--------|-----------|
 | **Backend** | ASP.NET Core 10 · EF Core 10 · SQLite · ASP.NET Core Identity · JWT Bearer · FluentValidation |
-| **Frontend** | React 19 · TypeScript · Vite 8 · React Router 7 |
+| **Frontend** | React 19 · TypeScript · Vite 8 · React Router 7 · Cloudflare Turnstile (pós-login) |
 | **Testes** | xUnit · `WebApplicationFactory` (integração) |
 | **Orquestração** | Node.js (`concurrently`) |
 
@@ -20,7 +22,7 @@ Aplicação fullstack de gerenciamento de produtos com integração à API [Blue
 - **Tratamento global de erros**: mapeamento de exceções de domínio → códigos HTTP corretos (400/404/409/429/502/503)
 - **Tema claro/escuro** persistido via `localStorage`
 - **Log de requisições HTTP** embutido no frontend (painel dedicado para debug)
-- **Autenticação**: registo e login (nome de utilizador e palavra-passe), JWT no cliente; cada utilizador tem um SQLite próprio em `data/users/{id}.db` (esquema migrado, sem dados iniciais)
+- **Autenticação**: registo e login (nome de utilizador e palavra-passe), JWT no cliente; **após o login com palavra-passe** o utilizador conclui a verificação **Cloudflare Turnstile** antes de receber o JWT de sessão (o registo devolve JWT diretamente). Cada utilizador tem um SQLite próprio em `data/users/{id}.db` (esquema migrado, sem dados iniciais)
 
 ## Pré-requisitos
 
@@ -40,15 +42,21 @@ dotnet tool restore
 
 ### 2. Configurar variáveis de ambiente
 
-Copie o arquivo de exemplo e preencha seu token da API Cosmos (opcional):
+Copie o ficheiro de exemplo e ajuste as variáveis (na raiz do repositório ou em `backend/ProductStore.Api/.env` — o último carregado prevalece por chave):
 
 ```bash
+# Linux / macOS / Git Bash
 cp .env.example .env
+
+# Windows (PowerShell)
+Copy-Item .env.example .env
 ```
 
-O token Cosmos é necessário apenas para a pré-visualização por GTIN. Sem ele, o enriquecimento por código de barras fica desabilitado.
+- **Cosmos** (`Cosmos__Token`): necessário apenas para a pré-visualização por GTIN; sem token, o enriquecimento por código de barras fica desabilitado.
+- **Turnstile** (`Turnstile__SecretKey` no `.env` da raiz): chave **secreta** do widget (siteverify), a mesma que no Render. **Desativado em desenvolvimento local**: com `ASPNETCORE_ENVIRONMENT=Development` e `npm run dev` (Vite), o login não exige widget nem domínio no Cloudflare.
+- **Frontend** (`frontend/.env`, copiado de `frontend/.env.example`): `VITE_TURNSTILE_SITE_KEY` (chave do site, pública), necessária para builds de produção / `vite preview`. Em `npm run dev` o fluxo ignora o Turnstile no cliente e na API.
 
-Em **produção**, defina `Jwt__Key` (ou `Jwt:Key` no `appsettings`) com pelo menos **32 caracteres** secretos; o valor de desenvolvimento em `appsettings.json` não deve ser usado em produção.
+Em **produção**, defina `Jwt__Key` (ou `Jwt:Key` no `appsettings`) com pelo menos **32 caracteres** secretos; o valor de desenvolvimento em `appsettings.json` não deve ser usado em produção. Para API exposta (ex.: Render) e front no Vercel, defina `CORS_ORIGINS` com a origem do site.
 
 ### 3. Instalar dependências Node
 
@@ -62,6 +70,8 @@ npm install --prefix frontend
 ```bash
 npm run dev
 ```
+
+Isto inicia em paralelo o backend (`dotnet watch` na API) e o frontend (Vite). Também pode executar cada parte à parte: `dotnet run --project backend/ProductStore.Api` e `npm run dev --prefix frontend`.
 
 Isso inicia simultaneamente:
 - **Frontend** → [http://localhost:5173](http://localhost:5173)
@@ -84,6 +94,14 @@ npm run test:watch
 
 Os testes de integração usam SQLite em memória e um stub da API Cosmos, sem dependências externas.
 
+### Build de produção (verificação local)
+
+```bash
+npm run build
+```
+
+Compila o frontend (`tsc` + `vite build`). A API publica-se com `dotnet publish` (ver `Dockerfile` para exemplo usado em ambientes como Render).
+
 ## Estrutura do projeto
 
 ```
@@ -102,7 +120,7 @@ product_manager/
 │   └── ProductStore.Api.Tests/        # Testes de integração (xUnit)
 ├── frontend/
 │   └── src/
-│       ├── pages/                     # Login, Register, ProductList, ProductForm, ProductDetail
+│       ├── pages/                     # Login, Register, TurnstileVerify, ProductList, ProductForm, ProductDetail
 │       ├── components/                # CosmosPreviewPanel, HttpLogViewer, ProtectedRoute
 │       ├── contexts/                  # AuthContext
 │       ├── api/                       # authApi, productsApi, categoriesApi, cosmosApi
@@ -120,7 +138,8 @@ product_manager/
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | `POST` | `/api/auth/register` | Regista utilizador e devolve JWT |
-| `POST` | `/api/auth/login` | Login e JWT |
+| `POST` | `/api/auth/login` | Valida credenciais e devolve `pendingToken` + prazo (JWT de login pendente; ainda não acede à API de produtos) |
+| `POST` | `/api/auth/complete-turnstile` | Troca `pendingToken` + token do widget Turnstile pelo JWT de sessão |
 | `GET` | `/api/products` | Lista paginada com filtros |
 | `POST` | `/api/products` | Cria produto |
 | `GET` | `/api/products/{id}` | Busca produto por ID |
@@ -139,12 +158,13 @@ Rotas `/api/products`, `/api/categories` e `/api/cosmos/*` exigem cabeçalho `Au
 | `search` | string | Busca em nome, SKU e descrição (case-insensitive) |
 | `categoryId` | GUID | Filtra por categoria |
 | `minPrice` / `maxPrice` | decimal | Faixa de preço |
-| `stockFilter` | `available` \| `out` \| `low` | Situação de estoque |
+| `stockFilter` | `available` \| `low` | Situação de estoque |
 | `page` | int | Página atual (padrão: 1) |
 | `pageSize` | int | Itens por página (padrão: 10, máx: 100) |
 
 ## Decisões de arquitetura
 
+- **Login em dois passos (Turnstile)**: após palavra-passe válida, a API emite um JWT de *login pendente* (audiência distinta) que não autoriza `/api/products` nem `/api/cosmos`; só após `POST /api/auth/complete-turnstile` com token do widget é emitido o Bearer de sessão. O registo mantém um único passo (JWT imediato). Em **Development**, a API aceita `complete-turnstile` sem token do widget e o front conclui o login sem carregar o script Cloudflare.
 - **Multi-tenant por ficheiro**: cada utilizador autenticado (claim `NameIdentifier`) usa um `AppDbContext` em `data/users/{userId}.db`; no registo o ficheiro é criado e migrado sem dados iniciais.
 - **SQLite em desenvolvimento**: elimina dependência de banco externo; caminho configurado fora do projeto para o `dotnet watch` não monitorar os arquivos WAL.
 - **Proxy Vite**: requisições `/api/*` do frontend são redirecionadas para a API em desenvolvimento, evitando configuração de CORS no browser.

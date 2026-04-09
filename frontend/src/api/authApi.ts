@@ -13,19 +13,23 @@ export {
   persistPendingLogin,
 } from '../lib/authStorage'
 
-export async function register(userName: string, password: string): Promise<AuthResponse> {
+export async function register(
+  userName: string,
+  password: string,
+  website = '',
+): Promise<AuthResponse> {
   const data = await apiJson<AuthResponse>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ userName, password }),
+    body: JSON.stringify({ userName, password, website }),
   })
   if (!data) throw new Error('Resposta vazia.')
   return data
 }
 
-export async function login(userName: string, password: string): Promise<LoginPendingResponse> {
+export async function login(userName: string, password: string, website = ''): Promise<LoginPendingResponse> {
   const data = await apiJson<LoginPendingResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ userName, password }),
+    body: JSON.stringify({ userName, password, website }),
   })
   if (!data) throw new Error('Resposta vazia.')
   return data

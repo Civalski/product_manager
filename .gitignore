@@ -30,6 +30,7 @@ data/*.db-wal
 
 # Exportações JSON geradas pela API (lista de produtos)
 data/users/**/exports/
+**/Data/users/**/exports/
 
 # ── Node / frontend ────────────────────────────
 node_modules/

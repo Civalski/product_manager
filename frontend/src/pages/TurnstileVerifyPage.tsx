@@ -13,10 +13,47 @@ function loadTurnstileScript(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
   if (window.turnstile) return Promise.resolve()
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${TURNSTILE_SCRIPT}"]`)
+    const existing = document.querySelector(`script[src="${TURNSTILE_SCRIPT}"]`) as HTMLScriptElement | null
     if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Falha ao carregar Turnstile.')))
+      const err = new Error('Falha ao carregar Turnstile.')
+      let pollId = 0
+      let timeoutId = 0
+      const cleanup = () => {
+        window.clearInterval(pollId)
+        window.clearTimeout(timeoutId)
+        existing.removeEventListener('error', onError)
+        existing.removeEventListener('load', onLoad)
+      }
+      const tryResolve = (): boolean => {
+        if (!window.turnstile) return false
+        cleanup()
+        resolve()
+        return true
+      }
+      const onLoad = () => {
+        tryResolve()
+      }
+      const onError = () => {
+        cleanup()
+        reject(err)
+      }
+      if (tryResolve()) return
+
+      existing.addEventListener('load', onLoad)
+      existing.addEventListener('error', onError)
+      // Script em cache: o evento `load` pode já ter disparado antes dos listeners.
+      queueMicrotask(() => {
+        tryResolve()
+      })
+      pollId = window.setInterval(() => {
+        tryResolve()
+      }, 50)
+      timeoutId = window.setTimeout(() => {
+        if (!tryResolve()) {
+          cleanup()
+          reject(err)
+        }
+      }, 10_000)
       return
     }
     const script = document.createElement('script')
@@ -72,6 +109,11 @@ export function TurnstileVerifyPage() {
       return
     }
 
+    if (import.meta.env.DEV) {
+      void runComplete('')
+      return
+    }
+
     if (!siteKey) {
       setError('Configure VITE_TURNSTILE_SITE_KEY (chave do site Cloudflare Turnstile).')
       return
@@ -90,7 +132,7 @@ export function TurnstileVerifyPage() {
     return () => {
       cancelled = true
     }
-  }, [navigate, siteKey])
+  }, [navigate, runComplete, siteKey])
 
   useEffect(() => {
     if (!scriptReady || !siteKey || !containerRef.current || !window.turnstile) return
@@ -100,6 +142,9 @@ export function TurnstileVerifyPage() {
 
     const id = window.turnstile.render(el, {
       sitekey: siteKey,
+      /** Mostra sempre o widget Cloudflare (evita modo “invisível” onde parece não haver verificação). */
+      appearance: 'always',
+      size: 'normal',
       callback: (token) => {
         void runComplete(token)
       },
@@ -129,7 +174,7 @@ export function TurnstileVerifyPage() {
           </div>
           <h1 className="auth-card-title">Verificação de segurança</h1>
           <p className="auth-card-subtitle">
-            Confirme que não é um robô para continuar para a aplicação.
+            O widget Cloudflare Turnstile abaixo confirma que não é um robô antes de aceder à aplicação.
           </p>
         </div>
 

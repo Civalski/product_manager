@@ -78,6 +78,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             e.Property(p => p.Price).HasPrecision(18, 2);
 
+            e.Property(p => p.PaidAmount).HasPrecision(18, 2);
+
             e.HasOne(p => p.Category)
 
                 .WithMany(c => c.Products)

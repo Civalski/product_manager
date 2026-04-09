@@ -16,7 +16,9 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
 
         RuleFor(x => x.Password)
             .NotEmpty()
-            .MinimumLength(6)
-            .MaximumLength(128);
+            .MinimumLength(8)
+            .MaximumLength(128)
+            .Must(p => p.Any(char.IsDigit) && p.Any(c => !char.IsLetterOrDigit(c)))
+            .WithMessage("A palavra-passe deve incluir pelo menos um número e um carácter especial.");
     }
 }

@@ -12,6 +12,8 @@ export function RegisterPage() {
 
   const [userName, setUserName] = useState('')
   const [password, setPassword] = useState('')
+  /** Honeypot: deve ficar vazio; utilizadores reais não o preenchem. */
+  const [website, setWebsite] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -20,7 +22,7 @@ export function RegisterPage() {
     setError(null)
     setPending(true)
     try {
-      await register(userName.trim(), password)
+      await register(userName.trim(), password, website)
       navigate('/', { replace: true })
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -37,11 +39,25 @@ export function RegisterPage() {
             <Package />
           </div>
           <h1 className="auth-card-title">Criar conta</h1>
-          <p className="auth-card-subtitle">Escolha um nome de utilizador e uma palavra-passe.</p>
+          <p className="auth-card-subtitle">
+            Palavra-passe: mínimo 8 caracteres, com pelo menos um número e um símbolo (ex.: ! ? #).
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error ? <div className="auth-error">{error}</div> : null}
+          <div className="auth-honeypot" aria-hidden="true">
+            <label htmlFor="reg-website">Website</label>
+            <input
+              id="reg-website"
+              name="website"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+            />
+          </div>
           <div className="form-field">
             <label className="form-label" htmlFor="reg-user">
               Nome de utilizador
@@ -68,7 +84,8 @@ export function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
+              title="Mínimo 8 caracteres, com número e símbolo"
             />
           </div>
           <div className="form-actions auth-form-actions">

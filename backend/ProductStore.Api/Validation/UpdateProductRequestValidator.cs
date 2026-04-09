@@ -70,6 +70,12 @@ public class UpdateProductRequestValidator : AbstractValidator<UpdateProductRequ
 
             .GreaterThanOrEqualTo(0).WithMessage("Preço não pode ser negativo.");
 
+
+
+        RuleFor(x => x.PaidAmount)
+
+            .GreaterThanOrEqualTo(0).WithMessage("Valor pago não pode ser negativo.");
+
     }
 
 

@@ -602,8 +602,6 @@ export function ProductListPage() {
 
                 <option value="available">Com estoque</option>
 
-                <option value="out">Esgotado</option>
-
                 <option value="low">Baixo (1–5 un.)</option>
 
               </select>

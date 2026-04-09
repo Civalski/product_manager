@@ -8,30 +8,46 @@ import { getPendingLogin } from '../lib/authStorage'
 import '../App.css'
 
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, completeTurnstileLogin } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/'
 
   const [userName, setUserName] = useState('')
   const [password, setPassword] = useState('')
+  /** Honeypot: deve ficar vazio. */
+  const [website, setWebsite] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
     const pendingLogin = getPendingLogin()
-    if (pendingLogin) {
-      navigate('/verify-turnstile', { state: { from }, replace: true })
+    if (!pendingLogin) return
+
+    if (import.meta.env.DEV) {
+      void completeTurnstileLogin('')
+        .then(() => navigate(from, { replace: true }))
+        .catch(() => {
+          /* falha ao completar: o utilizador pode voltar a fazer login */
+        })
+      return
     }
-  }, [from, navigate])
+
+    navigate('/verify-turnstile', { state: { from }, replace: true })
+  }, [from, navigate, completeTurnstileLogin])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setPending(true)
     try {
-      await login(userName.trim(), password)
-      navigate('/verify-turnstile', { state: { from }, replace: true })
+      await login(userName.trim(), password, website)
+      if (import.meta.env.DEV) {
+        await completeTurnstileLogin('')
+        navigate(from, { replace: true })
+      } else {
+        navigate('/verify-turnstile', { state: { from }, replace: true })
+      }
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -52,6 +68,18 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error ? <div className="auth-error">{error}</div> : null}
+          <div className="auth-honeypot" aria-hidden="true">
+            <label htmlFor="login-website">Website</label>
+            <input
+              id="login-website"
+              name="website"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+            />
+          </div>
           <div className="form-field">
             <label className="form-label" htmlFor="login-user">
               Nome de utilizador

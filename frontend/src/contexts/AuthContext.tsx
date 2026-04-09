@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import {
   clearAuth,
   clearPendingLogin,
@@ -22,20 +14,16 @@ import { getPendingLogin } from '../lib/authStorage'
 type AuthContextValue = {
   userName: string | null
   isAuthenticated: boolean
-  login: (userName: string, password: string) => Promise<void>
+  login: (userName: string, password: string, honeypot?: string) => Promise<void>
   completeTurnstileLogin: (turnstileToken: string) => Promise<void>
-  register: (userName: string, password: string) => Promise<void>
+  register: (userName: string, password: string, honeypot?: string) => Promise<void>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userName, setUserName] = useState<string | null>(null)
-
-  useEffect(() => {
-    setUserName(getStoredUserName())
-  }, [])
+  const [userName, setUserName] = useState<string | null>(() => getStoredUserName())
 
   const logout = useCallback(() => {
     clearAuth()
@@ -43,8 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserName(null)
   }, [])
 
-  const login = useCallback(async (u: string, p: string) => {
-    const res = await apiLogin(u, p)
+  const login = useCallback(async (u: string, p: string, honeypot = '') => {
+    const res = await apiLogin(u, p, honeypot)
     persistPendingLogin(res)
   }, [])
 
@@ -58,8 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserName(res.userName)
   }, [])
 
-  const register = useCallback(async (u: string, p: string) => {
-    const res = await apiRegister(u, p)
+  const register = useCallback(async (u: string, p: string, honeypot = '') => {
+    const res = await apiRegister(u, p, honeypot)
     persistAuth(res)
     setUserName(res.userName)
   }, [])
@@ -79,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook + provider no mesmo ficheiro
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth deve ser usado dentro de AuthProvider.')

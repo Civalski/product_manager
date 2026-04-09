@@ -84,6 +84,7 @@ public class ProductService(
             Name = name,
             Description = description,
             Price = price,
+            PaidAmount = request.PaidAmount,
             Stock = request.Stock,
             CategoryId = request.CategoryId,
             CosmosMetadataJson = cosmosJson,
@@ -156,6 +157,7 @@ public class ProductService(
         entity.Name = name;
         entity.Description = description;
         entity.Price = price;
+        entity.PaidAmount = request.PaidAmount;
         entity.Stock = request.Stock;
         entity.CategoryId = request.CategoryId;
         entity.CosmosMetadataJson = cosmosJson;
@@ -239,9 +241,6 @@ public class ProductService(
         {
             case "available":
                 q = q.Where(p => p.Stock > 0);
-                break;
-            case "out":
-                q = q.Where(p => p.Stock == 0);
                 break;
             case "low":
                 q = q.Where(p => p.Stock > 0 && p.Stock <= 5);
@@ -379,6 +378,7 @@ public class ProductService(
             p.Name,
             p.Description,
             p.Price,
+            p.PaidAmount,
             p.Stock,
             p.CategoryId,
             categoryName,

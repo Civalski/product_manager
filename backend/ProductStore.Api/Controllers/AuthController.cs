@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using ProductStore.Api.Configuration;
 using ProductStore.Api.DTOs;
@@ -27,12 +28,24 @@ public sealed class AuthController(
 {
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-register")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AuthResponse>> Register(
         [FromBody] RegisterRequest request,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(request.Website))
+        {
+            logger.LogWarning("Registo rejeitado: honeypot preenchido");
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Pedido inválido.",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Não foi possível concluir o pedido.",
+            });
+        }
+
         await registerValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var userName = request.UserName.Trim();
@@ -80,6 +93,7 @@ public sealed class AuthController(
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-login")]
     [ProducesResponseType(typeof(LoginPendingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -87,6 +101,17 @@ public sealed class AuthController(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(request.Website))
+        {
+            logger.LogWarning("Login rejeitado: honeypot preenchido");
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Pedido inválido.",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Não foi possível concluir o pedido.",
+            });
+        }
+
         await loginValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var userName = request.UserName.Trim();

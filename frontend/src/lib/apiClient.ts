@@ -1,5 +1,6 @@
 import type { ProblemDetails } from '../types/product'
 import { appendHttpLog } from './httpLog'
+import { sanitizeHttpLogBodyPreview } from './sanitizeHttpLogBody'
 
 import { getStoredToken } from './authStorage'
 
@@ -51,6 +52,9 @@ export function formatApiErrors(problem: ProblemDetails | null): string {
 /** Mensagem para exibir ao usuário (rede, ApiError ou genérico). */
 export function getApiErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
+    if (e.status === 429) {
+      return 'Demasiadas tentativas. Aguarde cerca de um minuto e tente novamente.'
+    }
     if (e.problem) return formatApiErrors(e.problem)
     return e.message
   }
@@ -86,8 +90,10 @@ export async function apiJson<T>(
       url,
       status: opts.status,
       durationMs: Math.round(performance.now() - t0),
-      requestBody: reqPreview,
-      responseBody: opts.responseText ? truncateBody(opts.responseText) : undefined,
+      requestBody: sanitizeHttpLogBodyPreview(reqPreview),
+      responseBody: opts.responseText
+        ? sanitizeHttpLogBodyPreview(truncateBody(opts.responseText))
+        : undefined,
       error: opts.error,
     })
   }
