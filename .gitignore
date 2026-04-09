@@ -1,0 +1,71 @@
+# ──────────────────────────────────────────────
+#  .gitignore — raiz do monorepo ProductStore
+# ──────────────────────────────────────────────
+
+# ── Segredos / variáveis de ambiente ──────────
+.env
+.env.local
+.env.*.local
+backend/**/.env
+backend/**/.env.local
+
+# ── .NET build artifacts ───────────────────────
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.ncrunch*
+_ReSharper*/
+
+# ── Banco de dados SQLite (arquivos de runtime) ──
+*.db
+*.db-shm
+*.db-wal
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# ── Node / frontend ────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# ── Logs ──────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Sistema operacional ────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editores ──────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+
+# ── Cobertura de testes ────────────────────────
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# ── Publicação .NET ────────────────────────────
+publish/
+
+# ── Ferramentas de desenvolvimento (Cursor, Playwright MCP, etc.) ──
+.memory-bank/
+.playwright-mcp/
+.cursor/
