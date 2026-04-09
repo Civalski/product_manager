@@ -5,8 +5,6 @@ import { sanitizeHttpLogBodyPreview } from './sanitizeHttpLogBody'
 import { getStoredToken } from './authStorage'
 
 const configuredBaseUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '').trim()
-const httpLogEnabled =
-  import.meta.env.DEV || (import.meta.env.VITE_ENABLE_HTTP_LOG_VIEWER ?? '').toLowerCase() === 'true'
 
 if (import.meta.env.PROD && configuredBaseUrl === '') {
   throw new Error('VITE_API_BASE_URL é obrigatório no build de produção.')
@@ -93,7 +91,6 @@ export async function apiJson<T>(
   const reqPreview = requestBodyPreview(init?.body)
 
   const pushLog = (opts: { status: number; responseText: string; error?: string }) => {
-    if (!httpLogEnabled) return
     appendHttpLog({
       method,
       url,

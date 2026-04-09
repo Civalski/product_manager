@@ -1,175 +1,249 @@
 # Segurança
 
-Este documento descreve as medidas de segurança implementadas no ProductStore e boas práticas para deploy em produção.
+Este documento descreve o estado atual de segurança do ProductStore, os controlos já implementados, limitações conhecidas e o processo recomendado para reporte responsável de vulnerabilidades.
 
-## Medidas de Segurança Implementadas
+## Escopo
+
+O projeto é composto por:
+
+- frontend React/Vite
+- API ASP.NET Core
+- autenticação com ASP.NET Core Identity e JWT
+- isolamento multi-tenant com SQLite por utilizador
+- integrações externas com Cloudflare Turnstile e Bluesoft Cosmos
+
+Este documento cobre o comportamento atual do repositório. Sempre que houver divergência entre a documentação e o código, o código é a fonte de verdade.
+
+## Controlos Implementados
 
 ### 1. Autenticação e Autorização
-- **JWT Bearer Authentication** com tokens assinados (HMAC-SHA256)
-- **ASP.NET Core Identity** para gestão de utilizadores e passwords
-- **Password hashing** seguro (PBKDF2)
-- **Cloudflare Turnstile** (CAPTCHA) no registo e login
-- **Honeypot** anti-bot nos formulários de autenticação
-- **Two-step login**: credenciais → Turnstile → JWT de sessão
-- **TestAuth** bloqueado fora de `IntegrationTesting` mesmo que a flag seja configurada por engano
 
-### 2. Rate Limiting
-- **Auth endpoints**: 5-10 requisições/minuto por IP
-- **API global**: 100 requisições/minuto por IP em todos os endpoints
-- Headers `Retry-After` em respostas 429
+- Autenticação JWT Bearer com assinatura simétrica HMAC.
+- ASP.NET Core Identity para gestão de utilizadores, hashing de password e lockout em tentativas inválidas.
+- Política mínima de password no backend:
+  - pelo menos 8 caracteres
+  - pelo menos 1 dígito
+  - pelo menos 1 letra minúscula
+  - pelo menos 1 símbolo
+  - maiúscula não é obrigatória
+- Registo protegido por Cloudflare Turnstile fora de `Development`.
+- Login em dois passos:
+  - `POST /api/auth/login` valida credenciais e devolve um `pendingToken`
+  - `POST /api/auth/complete-turnstile` valida Turnstile e emite o JWT final
+- O `pendingToken` usa audience diferente da audience do JWT final, para que não seja aceite como bearer token nas APIs protegidas.
+- `TestAuth:Enabled` é bloqueado fora de `IntegrationTesting`, mesmo se a flag for configurada por engano.
+- Endpoints protegidos exigem `Authorization: Bearer <jwt>`.
 
-### 3. CORS (Cross-Origin Resource Sharing)
-- **Desenvolvimento**: `localhost:5173` permitido
-- **Produção**: **obrigatório** configurar `CORS_ORIGINS` com origem Vercel
-- Validação automática: aplicação **não inicia** se CORS não estiver configurado em produção
+### 2. Gestão de Tokens no Cliente
 
-### 4. Headers de Segurança (Produção)
-- `X-Content-Type-Options: nosniff` - previne MIME sniffing
-- `X-Frame-Options: DENY` - previne clickjacking
-- `X-XSS-Protection: 1; mode=block` - proteção XSS adicional
-- `Referrer-Policy: strict-origin-when-cross-origin` - controlo de referrer
-- `Permissions-Policy` - desabilita APIs desnecessárias (geolocation, camera, etc)
+- O JWT final é armazenado no `localStorage`.
+- O `pendingToken` do login em dois passos é armazenado no `sessionStorage`.
+- O frontend remove tokens expirados ao ler o estado de autenticação.
+- O armazenamento atual privilegia simplicidade operacional; ver limitações conhecidas para os riscos e melhorias recomendadas.
 
-### 5. Proteção contra Injeção
-- **EF Core** com queries parametrizadas (protegido contra SQL Injection)
-- **FluentValidation** em todos os endpoints
-- Validação de entrada em frontend e backend
-- Sanitização de dados do utilizador
+### 3. Proteção Contra Abuso
 
-### 6. Multi-Tenancy Seguro
-- **Isolamento por utilizador**: cada user tem SQLite próprio (`data/users/{userId}.db`)
-- Contexto de tenant validado via JWT claim `NameIdentifier`
-- Sem possibilidade de acesso cross-tenant
+- Rate limit por IP real do cliente após `ForwardedHeaders`.
+- Limites atuais:
+  - `auth-register`: 5 requisições por minuto por IP
+  - `auth-login`: 10 requisições por minuto por IP
+  - `api-global`: 100 requisições por minuto por IP
+- Respostas `429` incluem header `Retry-After` quando disponível.
+- Honeypot nos formulários de registo e login para rejeição simples de bots automatizados.
 
-### 7. Tratamento de Erros
-- **GlobalExceptionHandler** com Problem Details (RFC 7807)
-- Mensagens de erro detalhadas **apenas em Development**
-- Stack traces ocultados em produção
-- Logging estruturado sem exposição de dados sensíveis
-- Painel de logs HTTP do frontend **desligado por padrão em produção** (opt-in via `VITE_ENABLE_HTTP_LOG_VIEWER=true`)
+### 4. CORS e Origem do Frontend
 
-### 8. HTTPS e Transport Security
-- **HTTPS redirect** obrigatório em produção
-- Cookies (se implementados) devem usar `Secure` + `HttpOnly` + `SameSite=Strict`
+- Em desenvolvimento, apenas `http://localhost:5173` e `http://127.0.0.1:5173` são permitidos.
+- Em produção, as origens permitidas devem ser configuradas via `CORS_ORIGINS` ou `Cors:AllowedOrigins`.
+- A aplicação falha no arranque se estiver fora de `Development` e `IntegrationTesting` sem CORS de produção configurado.
+- Não há suporte a wildcard como `https://*.vercel.app`; cada origem deve ser listada explicitamente.
 
-### 9. Reverse Proxy e IP Forwarding
-- `ForwardedHeaders` configurado para Render
-- `ForwardLimit = 1` - aceita apenas último salto (previne IP spoofing)
-- Rate limiting baseado em IP real do cliente
+### 5. Transporte e Cabeçalhos de Segurança
 
-### 10. Docker Security
-- **Non-root user** no container (UID 1001)
-- Multi-stage build (reduz superfície de ataque)
-- Apenas portas necessárias expostas
+- `UseHttpsRedirection()` ativo fora de `Development`.
+- `ForwardedHeaders` configurado para respeitar `X-Forwarded-For` e `X-Forwarded-Proto`.
+- `ForwardLimit = 1` para reduzir risco de spoofing de IP atrás do proxy esperado.
+- Em ambientes não `Development`, a API adiciona:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `X-XSS-Protection: 1; mode=block`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: geolocation=(), microphone=(), camera=()`
 
-### 11. Health Checks
-- `GET /health` e `GET /ready` expostos para monitorização e readiness probes
+### 6. Validação e Tratamento de Entrada
 
----
+- FluentValidation aplicado aos requests da API.
+- EF Core utiliza queries parametrizadas, reduzindo risco de SQL injection.
+- Respostas inválidas usam `ValidationProblemDetails`.
+- O frontend sanitiza pré-visualizações do painel de logs HTTP para ocultar campos sensíveis conhecidos antes de os exibir na UI de debug.
 
-## Checklist de Deploy em Produção
+### 7. Isolamento de Dados
 
-### Variáveis de Ambiente (Render - API)
+- Base de identidade separada em `data/identity.db`.
+- Cada utilizador possui base própria em `data/users/{userId}.db`.
+- O tenant é resolvido a partir do claim `NameIdentifier` do JWT.
+- Este modelo reduz superfície de acesso cross-tenant e simplifica backup/remoção por utilizador.
 
-**OBRIGATÓRIAS:**
+### 8. Tratamento de Erros e Observabilidade
+
+- `GlobalExceptionHandler` com Problem Details (RFC 7807).
+- Detalhes mais verbosos de erro apenas em `Development`.
+- Resumos de requests com status `4xx` e `5xx` são registados no backend.
+- O painel de logs HTTP do frontend fica desligado por padrão em produção e só é ativado com `VITE_ENABLE_HTTP_LOG_VIEWER=true`.
+
+### 9. Segurança de Deploy e Execução
+
+- O backend exige `Jwt__Key` seguro fora de `Development` e `IntegrationTesting`.
+- A aplicação falha no arranque se `Jwt__Key` estiver vazio, curto ou igual ao placeholder do repositório.
+- O `Dockerfile` usa build multi-stage e execução com utilizador não-root.
+- Endpoints de health check expostos:
+  - `GET /health`
+  - `GET /ready`
+
+## Checklist de Produção
+
+### Variáveis obrigatórias da API
+
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`
-- [ ] `Jwt__Key` - mínimo 32 caracteres aleatórios (gerar com: `[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))`)
-- [ ] `CORS_ORIGINS` - origem Vercel (ex: `https://seu-dominio.vercel.app`)
-- [ ] `Turnstile__SecretKey` - chave secreta Cloudflare
+- [ ] `Jwt__Key` com pelo menos 32 caracteres secretos
+- [ ] `CORS_ORIGINS` com a(s) origem(ns) públicas do frontend
+- [ ] `Turnstile__SecretKey` configurada
 
-**OPCIONAIS:**
-- [ ] `Cosmos__Token` - para integração Bluesoft (se não definido, usar SKU interno)
-- [ ] `AllowedHosts` - restringir hosts aceites (ex: `seu-app.onrender.com`)
+Sugestão para gerar segredo forte no PowerShell:
 
-### Variáveis de Ambiente (Vercel - Frontend)
+```powershell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+```
 
-**OBRIGATÓRIAS:**
-- [ ] `VITE_API_BASE_URL` - URL pública da API no Render (ex: `https://xxx.onrender.com`)
-- [ ] `VITE_TURNSTILE_SITE_KEY` - chave do site Cloudflare (par com `SecretKey`)
+### Variáveis opcionais da API
 
-### Verificações Finais
+- [ ] `Cosmos__Token` para integração com a Bluesoft Cosmos
+- [ ] `AllowedHosts` para restringir hosts aceites
 
-- [ ] Ficheiros `.env` **não** estão versionados no Git
-- [ ] `.gitignore` inclui `*.env` (já configurado)
-- [ ] Todas as credenciais foram geradas exclusivamente para produção
-- [ ] HTTPS funcionando corretamente
-- [ ] Testes passando (`npm test`)
-- [ ] Build frontend OK (`npm run build`)
-- [ ] Rate limiting testado (verificar headers `Retry-After`)
-- [ ] CORS testado (frontend acede API sem erros)
-- [ ] Cloudflare Turnstile testado em produção
+### Variáveis obrigatórias do frontend
 
----
+- [ ] `VITE_API_BASE_URL` com a URL pública da API
+- [ ] `VITE_TURNSTILE_SITE_KEY` com a chave pública do Cloudflare Turnstile
 
-## Boas Práticas
+### Verificações antes de publicar
 
-### Gestão de Credenciais
-- **NUNCA** versionar ficheiros `.env` com credenciais reais
-- Rotacionar credenciais periodicamente
-- Usar variáveis de ambiente distintas para dev/staging/produção
-- Gerar `Jwt__Key` com entropia suficiente (min. 32 caracteres)
+- [ ] Nenhum `.env` com segredos reais está versionado
+- [ ] HTTPS funcional entre frontend e backend
+- [ ] CORS validado com a origem real de produção
+- [ ] Turnstile validado em produção
+- [ ] `npm test` a passar
+- [ ] `npm run build` a passar
+- [ ] Rate limiting verificado com respostas `429`
+- [ ] `VITE_ENABLE_HTTP_LOG_VIEWER` desativado, salvo necessidade operacional explícita
+- [ ] Backups do diretório de dados definidos para o ambiente de produção
 
-### Tokens JWT
-- Tokens armazenados em `localStorage` (atual)
-- **RECOMENDAÇÃO FUTURA**: migrar para cookies `HttpOnly` + `Secure` + `SameSite=Strict`
-- Implementar refresh tokens para sessões longas
-- Validar `exp` (expiration) no cliente
+## Limitações Conhecidas
 
-### Logging
-- **NUNCA** logar senhas, tokens ou dados sensíveis
-- Em produção, logs devem ser enviados para serviço externo (Sentry, LogRocket, etc)
-- Remover `console.error` em produção (usar logging estruturado)
+### 1. JWT final em `localStorage`
 
-### Monitorização
-- Monitorizar rate limit violations (possível ataque)
-- Alertas em erros 5xx (falhas inesperadas)
-- Monitorizar chamadas à API Cosmos (custo)
+Risco:
 
-### Backup
-- Ficheiros SQLite em `data/` devem ter backup regular
-- Considerar migração para PostgreSQL/MySQL em produção (se escalar)
+- Em caso de XSS com execução de JavaScript no browser, o token pode ser lido e exfiltrado.
 
----
+Mitigação atual:
 
-## Vulnerabilidades Conhecidas e Mitigações
+- validação de entrada
+- cabeçalhos de segurança no backend
+- painel de logs com redação de campos sensíveis conhecidos
 
-### 1. JWT em localStorage (XSS)
-**Risco**: Script malicioso pode roubar token via `localStorage.getItem()`
+Melhoria recomendada:
 
-**Mitigação atual**: Headers de segurança + validação de entrada
+- migrar para cookies `HttpOnly` + `Secure` + `SameSite`
+- reduzir a vida útil do access token
+- introduzir refresh tokens com rotação
 
-**Mitigação futura recomendada**: 
-- Migrar para cookies `HttpOnly` (não acessível via JavaScript)
-- Implementar CSP (Content-Security-Policy) restritivo
-- Short-lived access tokens + refresh token pattern
+### 2. `pendingToken` em `sessionStorage`
 
-### 2. Rate Limiting por IP (DDoS distribuído)
-**Risco**: Atacante pode usar múltiplos IPs
+Risco:
 
-**Mitigação atual**: 100 req/min por IP
+- O token pendente tem vida curta, mas continua exposto a JavaScript da página durante a sessão.
 
-**Mitigação futura**: 
-- Cloudflare WAF/DDoS protection
-- Rate limiting por utilizador autenticado (além de IP)
+Mitigação atual:
 
-### 3. SQLite em Produção
-**Risco**: Limitações de concorrência e backup
+- audience separada do JWT final
+- expiração curta, limitada a no máximo 60 minutos e com valor default de 10 minutos
 
-**Mitigação atual**: Isolamento por tenant (ficheiros separados)
+Melhoria recomendada:
 
-**Mitigação futura**: Migrar para PostgreSQL/MySQL se tráfego crescer
+- migrar o fluxo de autenticação para armazenamento não acessível por JavaScript
 
----
+### 3. Ausência atual de CSP restritiva
 
-## Reporte de Vulnerabilidades
+Risco:
 
-Se descobrir uma vulnerabilidade de segurança, por favor **NÃO** abra issue público. Contacte diretamente o maintainer.
+- Sem `Content-Security-Policy`, a contenção de impacto de XSS depende de outras camadas.
 
----
+Mitigação atual:
+
+- validação de entrada
+- cabeçalhos defensivos adicionais
+
+Melhoria recomendada:
+
+- definir CSP compatível com Vite/React e com o script do Turnstile
+
+### 4. Rate limit baseado apenas em IP
+
+Risco:
+
+- Ataques distribuídos ou múltiplos utilizadores atrás do mesmo NAT podem contornar ou sofrer injustamente o limite.
+
+Mitigação atual:
+
+- limites conservadores por endpoint
+- resolução do IP após proxy reverso
+
+Melhoria recomendada:
+
+- combinar rate limit por IP com rate limit por utilizador autenticado
+- considerar WAF/CDN com proteção anti-bot e anti-DDoS
+
+### 5. SQLite em produção
+
+Risco:
+
+- Concorrência limitada, operação de backup mais sensível e ausência de cifragem em repouso fornecida pela aplicação.
+
+Mitigação atual:
+
+- isolamento por utilizador
+- estrutura simples para backup por ficheiro
+
+Melhoria recomendada:
+
+- usar cifragem ao nível do disco/host
+- avaliar PostgreSQL/MySQL se houver crescimento de tráfego, concorrência ou requisitos operacionais mais fortes
+
+## Boas Práticas Operacionais
+
+- Nunca versionar ficheiros `.env` com credenciais reais.
+- Rodar segredos periodicamente, especialmente `Jwt__Key`, Turnstile e tokens de terceiros.
+- Usar segredos distintos para desenvolvimento, staging e produção.
+- Monitorizar erros `5xx`, picos de `429` e falhas de verificação Turnstile.
+- Rever regularmente dependências do frontend, do backend e da imagem Docker.
+- Manter backups testados do diretório `data/`.
+- Tratar `GET /health` e `GET /ready` como endpoints públicos de infraestrutura e evitar incluir dados sensíveis neles.
+
+## Reporte Responsável de Vulnerabilidades
+
+Se descobrir uma vulnerabilidade:
+
+- não abra issue público
+- contacte o maintainer por canal privado disponível na plataforma do repositório
+- inclua impacto, pré-condições, passos de reprodução e versão/commit afetado
+- se possível, envie prova de conceito mínima e segura
+- se a falha envolver exposição de segredo, indique quais credenciais devem ser rotacionadas
+
+Não há SLA formal definido neste repositório. Os reports serão analisados assim que possível.
 
 ## Referências
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [ASP.NET Core Security](https://learn.microsoft.com/aspnet/core/security/)
-- [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
+- [JWT Best Current Practices (RFC 8725)](https://www.rfc-editor.org/rfc/rfc8725)
 - [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/)
