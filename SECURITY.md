@@ -1,6 +1,6 @@
 # Segurança
 
-Este documento descreve o estado atual de segurança do ProductStore, os controlos já implementados, limitações conhecidas e o processo recomendado para reporte responsável de vulnerabilidades.
+Este documento descreve o estado atual de segurança do ProductStore, os controles já implementados, limitações conhecidas e o processo recomendado para reporte responsável de vulnerabilidades.
 
 ## Escopo
 
